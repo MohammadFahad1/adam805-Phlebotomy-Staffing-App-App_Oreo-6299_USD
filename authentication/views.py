@@ -1,13 +1,22 @@
 import json
 import re
+import random
+import uuid
 from rest_framework.response import Response
 from rest_framework import status
 from phlebotomy_staffing.base import NewAPIView
 from authentication import models, serializers
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from authentication.tasks import send_reset_otp_email
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
+from datetime import timedelta
 
+User = get_user_model()
 
 # Phlebotomist Registration View
 class PhlebotomistRegistrationView(NewAPIView):
@@ -354,4 +363,147 @@ class ClientRegistrationView(NewAPIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+class RequestForgetPasswordAPIView(NewAPIView):
+    serializer_class = serializers.EmailSerializer
+    permission_classes = [AllowAny]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def post(self, request):
+        """
+        **Request Forget Password Endpoint - Public**\n
+        Request a password reset OTP to be sent to the user's email address.
+        
+        **Request Body:**
+        - **email**: The email address of the user (string, required).
+
+        **Response:**
+        - **success**: A boolean indicating whether the OTP was sent successfully.
+        - **message**: A message providing additional information about the OTP request result.
+        """
+        data = request.data
+        email = data.get('email')
+        if not email:
+            return Response({"success": False, "message": "Email field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(email=email)
+            otp = str(random.randint(100000, 999999))
+            user.otp = otp
+            user.otp_created_at = timezone.now()
+            user.forgot_password_token = str(uuid.uuid4())
+            user.save()
+            send_reset_otp_email.delay(email, otp)
+            return Response({"success": True, "message": "A password reset OTP has been sent to your email."}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"success": False, "message": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+class VerifyForgetPasswordOTPAPIView(NewAPIView):
+    serializer_class = serializers.EmailOTPSerializer
+    permission_classes = [AllowAny]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def post(self, request):
+        """
+        **Verify Forget Password OTP Endpoint - Public**\n
+        Verify the OTP sent to the user's email for password reset.
+        
+        **Request Body:**
+        - **email**: The email address of the user (string, required).
+        - **otp**: The OTP sent to the user's email (string, required).
+
+        **Response:**
+        - **success**: A boolean indicating whether the OTP was verified successfully.
+        - **message**: A message providing additional information about the OTP verification result.
+        - **email**: The email address of the user (string, returned only if OTP is verified successfully).
+        - **forgot_password_token**: A token that can be used to reset the password (string, returned only if OTP is verified successfully).
+        """
+        data = request.data
+        email = data.get('email')
+        otp = data.get('otp')
+        if not email or not otp:
+            return Response({"success": False, "message": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(email=email)
+            if user.forgot_password_token is None:
+                return Response({"success": False, "message": "No password reset request found for this email."}, status=status.HTTP_400_BAD_REQUEST)
+            if user.otp_created_at and timezone.now() - user.otp_created_at > timezone.timedelta(minutes=15):
+                return Response({"success": False, "message": "OTP has expired. Please request a new one."}, status=status.HTTP_400_BAD_REQUEST)
+            if user.otp != otp:
+                return Response({"success": False, "message": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+            user.otp = None
+            user.otp_created_at = None
+            user.save()
+            return Response({"success": True, "message": "OTP verified successfully.", "email": user.email, "forgot_password_token": user.forgot_password_token}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"success": False, "message": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+class ResetPasswordAPIView(NewAPIView):
+    serializer_class = serializers.ResetPasswordSerializer
+    permission_classes = [AllowAny]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def post(self, request):
+        """
+        **Reset Password Endpoint - Public**\n
+        Reset the password for a user using the provided email, OTP, and new password.
+        
+        **Request Body:**
+        - **email**: The email address of the user (string, required).
+        - **otp**: The OTP sent to the user's email (string, required).
+        - **new_password**: The new password for the user (string, required).
+
+        **Response:**
+        - **success**: A boolean indicating whether the password was reset successfully.
+        - **message**: A message providing additional information about the password reset result.
+        """
+        data = request.data
+        email = data.get('email')
+        forgot_password_token = data.get('forgot_password_token')
+        new_password = data.get('new_password')
+        if not email or not forgot_password_token or not new_password:
+            return Response({"success": False, "message": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(email=email)
+            if user.forgot_password_token != forgot_password_token:
+                return Response({"success": False, "message": "Invalid forgot password token."}, status=status.HTTP_400_BAD_REQUEST)
+            if user.otp:
+                return Response({"success": False, "message": "OTP has not been verified yet."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                validate_password(new_password)
+            except ValidationError as e:
+                return Response({"success": False, "message": e.messages.pop()}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(new_password)
+            user.forgot_password_token = None
+            user.save()
+            return Response({"success": True, "message": "Password reset successfully."}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"success": False, "message": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        except ValidationError as e:
+            return Response({"success": False, "message": e.messages.pop()}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"success": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class AccountDeleteAPIView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['delete']
+    
+    @swagger_auto_schema(tags=['Authentication'])
+    def delete(self, request):
+        """
+        **Delete Account Endpoint - Authenticated**\n
+        Delete the authenticated user's account.
+        
+        **Response:**
+        - **success**: A boolean indicating whether the account was deleted successfully.
+        - **message**: A message providing additional information about the account deletion result.
+        """
+        try:
+            request.user.delete()
+            return Response({"success": True, "message": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({"success": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

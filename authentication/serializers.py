@@ -364,3 +364,26 @@ class ClientRegistrationSerializer(serializers.Serializer):
                 )
 
         return user
+
+class EmailOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+class EmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    forgot_password_token = serializers.UUIDField()
+    new_password = serializers.CharField(write_only=True)
+
+class EmptySerializer(serializers.Serializer):
+    pass

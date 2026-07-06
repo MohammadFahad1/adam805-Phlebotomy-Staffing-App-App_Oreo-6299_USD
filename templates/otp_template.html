@@ -1,0 +1,64 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #475569; }
+        .main-container { max-width: 600px; margin: 0 auto; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body style="background-color: #f4f7f6; margin: 0 !important; padding: 0 !important; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <!-- Main Container -->
+                <table class="main-container" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td class="header" align="center" style="background-color: #C9A84C; padding: 40px 30px; text-align: center;">
+                            <div style="background-color: rgba(255,255,255,0.2); width: 64px; height: 64px; border-radius: 50%; line-height: 64px; text-align: center; margin: 0 auto 15px auto; font-size: 30px;">✉️</div>
+                            <h2 class="branding" style="font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: 1px; margin: 0;">PrimePath</h2>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td class="content" style="padding: 45px 40px; font-size: 16px; line-height: 1.6; color: #475569;">
+                            <h1 style="color: #1e293b; font-size: 24px; margin-top: 0; font-weight: 600; text-align: center;">Verify Your Email Address</h1>
+                            <p style="text-align: center; margin-bottom: 30px;">
+                            {% if purpose == "Activation" %}
+                                Thank you for getting started with PrimePath! We just need to verify your email address to complete your registration.
+                            {% else %}
+                                Thank you for requesting a password reset. Please verify your email address to proceed.
+                            {% endif %}    
+                            </p>
+                            
+                            <!-- OTP Box -->
+                            <div class="otp-box" style="background-color: #fdf8ec; border-radius: 12px; padding: 30px; text-align: center; margin: 35px 0; border: 1px dashed #C9A84C;">
+                                <p style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #C9A84C; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code</p>
+                                <span class="otp-code" style="font-size: 42px; font-weight: 700; letter-spacing: 12px; color: #001841; margin: 0; display: inline-block;">{{ otp }}</span>
+                                <p class="otp-note" style="font-size: 14px; color: #C9A84C; margin-top: 15px; margin-bottom: 0;">This code will expire in 15 minutes.</p>
+                            </div>
+                            
+                            <p style="text-align: center; margin-top: 30px; font-size: 15px;">If you didn't request this, ignore this email.</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer" align="center" style="background-color: #fdf8ec; padding: 30px; text-align: center; font-size: 13px; color: #94a3b8; border-top: 1px solid #e8d9a8;">
+                            <p style="margin: 0 0 10px 0;">&copy; 2026 PrimePath. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
