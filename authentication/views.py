@@ -503,6 +503,8 @@ class AccountDeleteAPIView(NewAPIView):
         - **message**: A message providing additional information about the account deletion result.
         """
         try:
+            if request.user.is_superuser:
+                return Response({"success": False, "message": "Superuser accounts cannot be deleted."}, status=status.HTTP_400_BAD_REQUEST)
             request.user.delete()
             return Response({"success": True, "message": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
