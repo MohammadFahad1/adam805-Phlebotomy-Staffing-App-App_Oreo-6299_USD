@@ -5,7 +5,10 @@ from .models import (
     Phlebotomist, 
     PhlebotomistAvailability, 
     Phlebotomist_skill, 
-    Phlebotomist_document
+    Phlebotomist_document,
+    Client, 
+    ClientDocument, 
+    ClientWeeklySchedule
 )
 
 
@@ -108,3 +111,95 @@ class PhlebotomistDocumentAdmin(admin.ModelAdmin):
     def get_phlebotomist_name(self, obj):
         return obj.phlebotomist.user.full_name
 
+
+
+# --- Tabular Inlines for Client Profile ---
+
+class ClientDocumentInline(admin.TabularInline):
+    model = ClientDocument
+    extra = 1
+    fields = ('document_name', 'document_file', 'approved')
+
+
+class ClientWeeklyScheduleInline(admin.TabularInline):
+    model = ClientWeeklySchedule
+    extra = 1
+    fields = ('day', 'date', 'start_time', 'end_time', 'is_available')
+
+
+# --- Core Client & Secondary Models Admin ---
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_client_name', 
+        'business_name', 
+        'business_type', 
+        'contact_person_name', 
+        'business_phone', 
+        'hourly_pay_rate', 
+        'no_of_employees',
+        'created_at'
+    )
+    list_filter = ('business_type', 'preferred_job_type', 'work_preference', 'created_at')
+    search_fields = (
+        'client__full_name',  # Updated from user__full_name
+        'client__email',      # Updated from user__email
+        'business_name', 
+        'contact_person_name', 
+        'business_license_number'
+    )
+    
+    # Updated to match the new OneToOne field name
+    
+    inlines = [ClientDocumentInline, ClientWeeklyScheduleInline]
+    
+    fieldsets = (
+        (None, {
+            'fields': ('client',) # Updated from user
+        }),
+        ('Business Information', {
+            'fields': ('business_name', 'business_type', 'business_license_number', 'no_of_employees', 'business_description')
+        }),
+        ('Contact & Address Details', {
+            'fields': ('contact_person_name', 'business_phone', 'business_address_street', 'business_address_city', 'business_address_state', 'business_address_zip')
+        }),
+        ('Preferences & Rates', {
+            'fields': ('hourly_pay_rate', 'preferred_job_type', 'work_preference')
+        }),
+        ('System Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+    
+    readonly_fields = ('created_at', 'updated_at')
+
+    @admin.display(ordering='client__full_name', description='Client Owner Name')
+    def get_client_name(self, obj):
+        return obj.client.full_name  # Updated from obj.user.full_name
+
+
+@admin.register(ClientDocument)
+class ClientDocumentAdmin(admin.ModelAdmin):
+    list_display = ('document_name', 'get_client_name', 'approved')
+    list_filter = ('approved',)
+    list_editable = ('approved',)
+    search_fields = ('document_name', 'client__client__full_name', 'client__business_name') # Updated lookup path
+    raw_id_fields = ('client',)
+
+    @admin.display(ordering='client__client__full_name', description='Client')
+    def get_client_name(self, obj):
+        return obj.client.client.full_name  # Updated lookup path
+
+
+@admin.register(ClientWeeklySchedule)
+class ClientWeeklyScheduleAdmin(admin.ModelAdmin):
+    list_display = ('get_client_name', 'day', 'date', 'start_time', 'end_time', 'is_available')
+    list_filter = ('day', 'date', 'is_available')
+    search_fields = ('client__client__full_name', 'client__business_name') # Updated lookup path
+    raw_id_fields = ('client',)
+
+    @admin.display(ordering='client__client__full_name', description='Client')
+    def get_client_name(self, obj):
+        return obj.client.client.full_name  # Updated lookup path

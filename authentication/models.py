@@ -46,6 +46,7 @@ class User(AbstractUser):
     def __str__(self):
         return f"#{self.id} - {self.full_name} ({self.email})"
 
+# Phlebotomist models Start Here
 class Phlebotomist(models.Model):
     GENERAL_PHLEBOTOMY = 'general_phlebotomy'
     IV_INSERTION_OR_THERAPY = 'iv_insertion_or_therapy'
@@ -67,7 +68,7 @@ class Phlebotomist(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='phlebotomist_profile')
     license_number = models.CharField(max_length=100)
     license_expiry_date = models.DateField()
-    years_of_experience = models.PositiveIntegerField()
+    years_of_experience = models.PositiveIntegerField(default=0)
     specialty = models.CharField(choices=SPECIALTY_CHOICES, max_length=100)
     work_preference = models.CharField(choices=WORK_PREFERENCE_CHOICES, max_length=100)
     service_area = models.CharField(max_length=255)
@@ -121,4 +122,83 @@ class Phlebotomist_document(models.Model):
     
     def __str__(self):
         return f"Document: {self.document_name} for {self.phlebotomist.user.full_name}"
+# Phlebotomist models End Here
 
+# Client models Start Here
+class Client(models.Model):
+    HEALTHCARE = 'healthcare'
+    INDIVIDUAL = 'individual'
+    BUSINESS_TYPE_CHOICES = [
+        (HEALTHCARE, 'Healthcare'),
+        (INDIVIDUAL, 'Individual'),
+    ]
+    
+    IN_CLINIC_PHLEBOTOMY = 'in_clinic_phlebotomy'
+    MOBILE_BLOOD_DRAW = 'mobile_blood_draw'
+    LABORATORY_TESTING = 'laboratory_testing'
+    JOB_PREFERENCE_CHOICES = [
+        (IN_CLINIC_PHLEBOTOMY, 'In-Clinic Phlebotomy'),
+        (MOBILE_BLOOD_DRAW, 'Mobile Blood Draw'),
+        (LABORATORY_TESTING, 'Laboratory Testing'),
+    ]
+    
+    PART_TIME = 'part_time'
+    FULL_TIME = 'full_time'
+    WORK_PREFERENCE_CHOICES = [
+        (PART_TIME, 'Part-time'),
+        (FULL_TIME, 'Full-time'),
+    ]
+    client = models.OneToOneField(User, on_delete=models.CASCADE, related_name='client_profile')
+    business_name = models.CharField(max_length=255)
+    business_type = models.CharField(max_length=255, choices=BUSINESS_TYPE_CHOICES)
+    business_address_street = models.CharField(max_length=255)
+    business_address_city = models.CharField(max_length=255)
+    business_address_state = models.CharField(max_length=255)
+    business_address_zip = models.CharField(max_length=10)
+    contact_person_name = models.CharField(max_length=255)
+    business_phone = models.CharField(max_length=20)
+    business_license_number = models.CharField(max_length=100)
+    business_description = models.TextField()
+    hourly_pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    preferred_job_type = models.CharField(max_length=100, choices=JOB_PREFERENCE_CHOICES)
+    work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
+    no_of_employees = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Client: {self.user.full_name}"
+
+class ClientDocument(models.Model):
+    LICENSE = 'license'
+    SIGNATURE = 'signature'
+    DOCUMENT_TYPE_CHOICES = [
+        (LICENSE, 'License'),
+        (SIGNATURE, 'signature'),
+    ]
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
+    document_name = models.CharField(max_length=100)
+    document_file = models.FileField(upload_to='client_documents/')
+    approved = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ('client', 'document_name', 'approved')
+    
+    def __str__(self):
+        return f"Document: {self.document_name} for {self.client.user.full_name}"
+
+class ClientWeeklySchedule(models.Model):
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='availabilities')
+    day = models.CharField(max_length=10)
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_available = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('client', 'date', 'start_time', 'end_time')
+        ordering = ['date', 'start_time']
+    
+    def __str__(self):
+        return f"Availability for {self.Client.user.full_name} on {self.date} from {self.start_time} to {self.end_time}"
+# Client models End Here
