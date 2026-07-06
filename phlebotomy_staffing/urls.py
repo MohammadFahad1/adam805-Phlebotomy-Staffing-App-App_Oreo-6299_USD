@@ -9,7 +9,7 @@ schema_view = get_schema_view(
    openapi.Info(
       title="Phlebotomy Staffing API",
       default_version='v1',
-      description="Phlebotomy Staffing API",
+      description="Base URL: http://10.10.13.43:8001",
       terms_of_service="https://www.google.com/policies/terms/",
       contact=openapi.Contact(email="contact@snippets.local"),
       license=openapi.License(name="BSD License"),

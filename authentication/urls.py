@@ -8,6 +8,7 @@ urlpatterns = [
     
     # Login Endpoint
     path('login/', views.UserLoginView.as_view(), name='login'),
+    path('account/delete/', views.AccountDeleteAPIView.as_view(), name='account-delete'),
     
     # Forget Password Endpoints
     path('forget-password/', views.RequestForgetPasswordAPIView.as_view(), name='forget-password'),
