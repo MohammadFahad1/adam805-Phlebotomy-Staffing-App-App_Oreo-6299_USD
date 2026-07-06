@@ -375,6 +375,7 @@ class EmailSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(choices=models.User.ROLE_CHOICES, required=True)
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)

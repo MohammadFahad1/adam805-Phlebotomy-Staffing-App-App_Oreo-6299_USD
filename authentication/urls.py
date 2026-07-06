@@ -6,6 +6,9 @@ urlpatterns = [
     path('register/phlebotomist/', views.PhlebotomistRegistrationView.as_view(), name='phlebotomist-register'),
     path('register/client/', views.ClientRegistrationView.as_view(), name='client-register'),
     
+    # Login Endpoint
+    path('login/', views.UserLoginView.as_view(), name='login'),
+    
     # Forget Password Endpoints
     path('forget-password/', views.RequestForgetPasswordAPIView.as_view(), name='forget-password'),
     path('verify-otp/', views.VerifyForgetPasswordOTPAPIView.as_view(), name='verify-otp'),

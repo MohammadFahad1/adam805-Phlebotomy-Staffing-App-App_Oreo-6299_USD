@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from datetime import timedelta
+from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -506,4 +507,116 @@ class AccountDeleteAPIView(NewAPIView):
             return Response({"success": True, "message": "Account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"success": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ChangePasswordView(NewAPIView):
+    serializer_class = serializers.ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def post(self, request):
+        """
+        **Change Password Endpoint - Authentication Required**\n
+        Allow authenticated users to change their password.
+        
+        **Request Body:**
+        - **old_password**: The current password of the user (string, required).
+        - **new_password**: The new password for the user (string, required).
+
+        **Response:**
+        - **success**: A boolean indicating whether the password was changed successfully.
+        - **message**: A message providing additional information about the password change result.
+        """
+        data = request.data
+        old_password = data.get('old_password')
+        new_password = data.get('new_password')
+        if not old_password or not new_password:
+            return Response({"success": False, "message": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        if not user.check_password(old_password):
+            return Response({"success": False, "message": "Old password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_password(new_password)
+        except ValidationError as e:
+            return Response({"success": False, "message": e.messages.pop()}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
+        user.save()
+        return Response({"success": True, "message": "Password changed successfully."}, status=status.HTTP_200_OK)
+
+class UserLoginView(NewAPIView):
+    serializer_class = serializers.LoginSerializer
+    permission_classes = [AllowAny]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def post(self, request):
+        """
+        **Universal Login Endpoint - Public**\n
+        Authenticate a user and return access and refresh tokens.
+        
+        **Request Body:**
+        - **email**: The email address of the user (string, required).
+        - **password**: The password of the user (string, required).
+        - **role**: The role of the user (string, required) options: `admin`, `phlebotomist`, `client`.
+
+        **Example Response:**
+        ```
+        {
+            "success": true,
+            "message": "Account activated successfully.",
+            "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "user_id": 3,
+            "user_full_name": "Md. Fahad Monshi",
+            "user_email": "fahad4bangladesh@gmail.com",
+            "user_phone_number": null,
+            "user_profile_picture": null,
+            "is_approved": true,
+            "role": "phlebotomist"
+        }
+        ```
+        """
+        if not request.data.get('email') or not request.data.get('password') or not request.data.get('role'):
+            return Response({"success": False, "message": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            role = serializer.validated_data['role']
+            try:
+                user = User.objects.get(email=email, role=role)
+                if not user:
+                    return Response({"success": False, "message": "Invalid credentials."}, status=status.HTTP_404_NOT_FOUND)
+                if not user.check_password(password):
+                    return Response({"success": False, "message": "Invalid credentials."}, status=status.HTTP_404_NOT_FOUND)
+                if not user.is_active:
+                    return Response({"success": False, "message": "Account is not active. Please activate your account first."}, status=status.HTTP_403_FORBIDDEN)
+                
+                if user.role == 'phlebotomist' and hasattr(user, 'phlebotomist_profile') and not user.phlebotomist_profile.approved:
+                    return Response({"success": False, "message": "Your account is not approved yet."}, status=status.HTTP_404_NOT_FOUND)
+                
+                if user.role == 'client' and hasattr(user, 'client_profile') and not user.client_profile.is_approved:
+                    return Response({"success": False, "message": "Your account is not approved yet."}, status=status.HTTP_404_NOT_FOUND)
+                
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                refresh_token = str(refresh)
+                return Response({
+                    "success": True, 
+                    "message": "Login successful.", 
+                    "access": access_token, 
+                    "refresh": refresh_token,
+                    "user_id": user.id,
+                    "user_full_name": user.full_name,
+                    "user_email": user.email,
+                    "user_phone_number": user.phone_number,
+                    "user_profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    "is_approved": user.phlebotomist_profile.approved if user.role == 'phlebotomist' else (user.client_profile.is_approved if user.role == 'client' else None),
+                    "role": user.role,
+                    }, status=status.HTTP_200_OK)        
+            except User.DoesNotExist:
+                return Response({"success": False, "message": "Invalid credentials."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"success": False, "message": "Invalid input data."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
