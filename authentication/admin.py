@@ -138,7 +138,7 @@ class ClientAdmin(admin.ModelAdmin):
         'contact_person_name', 
         'business_phone', 
         'hourly_pay_rate', 
-        'no_of_employees',
+        'is_approved',
         'created_at'
     )
     list_filter = ('business_type', 'preferred_job_type', 'work_preference', 'created_at')
@@ -164,7 +164,7 @@ class ClientAdmin(admin.ModelAdmin):
             'fields': ('contact_person_name', 'business_phone', 'business_address_street', 'business_address_city', 'business_address_state', 'business_address_zip')
         }),
         ('Preferences & Rates', {
-            'fields': ('hourly_pay_rate', 'preferred_job_type', 'work_preference')
+            'fields': ('hourly_pay_rate', 'preferred_job_type', 'work_preference', 'is_approved')
         }),
         ('System Timestamps', {
             'fields': ('created_at', 'updated_at'),

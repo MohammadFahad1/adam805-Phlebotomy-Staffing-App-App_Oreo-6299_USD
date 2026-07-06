@@ -164,11 +164,12 @@ class Client(models.Model):
     work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
     no_of_employees = models.PositiveIntegerField(default=0)
     signature = models.ImageField(upload_to='client_signatures/', null=True, blank=True)
+    is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Client: {self.user.full_name}"
+        return f"Client: {self.client.full_name}"
 
 class ClientDocument(models.Model):
     LICENSE = 'license'
@@ -186,7 +187,7 @@ class ClientDocument(models.Model):
         unique_together = ('client', 'document_name', 'approved')
     
     def __str__(self):
-        return f"Document: {self.document_name} for {self.client.user.full_name}"
+        return f"Document: {self.document_name} for {self.client.client.full_name}"
 
 class ClientWeeklySchedule(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='availabilities')
@@ -201,5 +202,5 @@ class ClientWeeklySchedule(models.Model):
         ordering = ['date', 'start_time']
     
     def __str__(self):
-        return f"Availability for {self.Client.user.full_name} on {self.date} from {self.start_time} to {self.end_time}"
+        return f"Availability for {self.client.client.full_name} on {self.date} from {self.start_time} to {self.end_time}"
 # Client models End Here
