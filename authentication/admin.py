@@ -143,20 +143,19 @@ class ClientAdmin(admin.ModelAdmin):
     )
     list_filter = ('business_type', 'preferred_job_type', 'work_preference', 'created_at')
     search_fields = (
-        'client__full_name',  # Updated from user__full_name
-        'client__email',      # Updated from user__email
+        'client__full_name',
+        'client__email',
         'business_name', 
         'contact_person_name', 
         'business_license_number'
     )
     
     # Updated to match the new OneToOne field name
-    
     inlines = [ClientDocumentInline, ClientWeeklyScheduleInline]
     
     fieldsets = (
         (None, {
-            'fields': ('client',) # Updated from user
+            'fields': ('client',)
         }),
         ('Business Information', {
             'fields': ('business_name', 'business_type', 'business_license_number', 'no_of_employees', 'business_description')
@@ -177,7 +176,7 @@ class ClientAdmin(admin.ModelAdmin):
 
     @admin.display(ordering='client__full_name', description='Client Owner Name')
     def get_client_name(self, obj):
-        return obj.client.full_name  # Updated from obj.user.full_name
+        return obj.client.full_name
 
 
 @admin.register(ClientDocument)
@@ -185,21 +184,23 @@ class ClientDocumentAdmin(admin.ModelAdmin):
     list_display = ('document_name', 'get_client_name', 'approved')
     list_filter = ('approved',)
     list_editable = ('approved',)
-    search_fields = ('document_name', 'client__client__full_name', 'client__business_name') # Updated lookup path
+    search_fields = ('document_name', 'client__client__full_name', 'client__business_name')
     raw_id_fields = ('client',)
 
     @admin.display(ordering='client__client__full_name', description='Client')
     def get_client_name(self, obj):
-        return obj.client.client.full_name  # Updated lookup path
+        return obj.client.client.full_name
 
 
 @admin.register(ClientWeeklySchedule)
 class ClientWeeklyScheduleAdmin(admin.ModelAdmin):
     list_display = ('get_client_name', 'day', 'date', 'start_time', 'end_time', 'is_available')
     list_filter = ('day', 'date', 'is_available')
-    search_fields = ('client__client__full_name', 'client__business_name') # Updated lookup path
+    search_fields = ('client__client__full_name', 'client__business_name')
     raw_id_fields = ('client',)
 
     @admin.display(ordering='client__client__full_name', description='Client')
     def get_client_name(self, obj):
-        return obj.client.client.full_name  # Updated lookup path
+        return obj.client.client.full_name
+
+
