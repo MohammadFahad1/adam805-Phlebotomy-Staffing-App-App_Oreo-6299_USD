@@ -163,6 +163,7 @@ class Client(models.Model):
     preferred_job_type = models.CharField(max_length=100, choices=JOB_PREFERENCE_CHOICES)
     work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
     no_of_employees = models.PositiveIntegerField(default=0)
+    signature = models.ImageField(upload_to='client_signatures/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

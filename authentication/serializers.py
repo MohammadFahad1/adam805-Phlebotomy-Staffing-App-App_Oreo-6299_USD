@@ -36,8 +36,52 @@ class PhlebotomistSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
 
+# Client Serializers
+class ClientWeeklyScheduleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ClientWeeklySchedule
+        fields = ['id', 'day', 'date', 'start_time', 'end_time', 'is_available']
+
+class ClientDocumentSerializer(serializers.ModelSerializer):
+    document_file = serializers.FileField(required=True, allow_null=False)
+
+    class Meta:
+        model = models.ClientDocument
+        fields = ['id', 'document_name', 'document_file', 'approved']
+        read_only_fields = ['approved']
+
+class ClientSerializer(serializers.ModelSerializer):
+    availabilities = ClientWeeklyScheduleSerializer(many=True, read_only=True)
+    documents = ClientDocumentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.Client
+        fields = [
+            'id',
+            'business_name',
+            'business_type',
+            'business_address_street',
+            'business_address_city',
+            'business_address_state',
+            'business_address_zip',
+            'contact_person_name',
+            'business_phone',
+            'business_license_number',
+            'business_description',
+            'hourly_pay_rate',
+            'preferred_job_type',
+            'work_preference',
+            'no_of_employees',
+            'signature',
+            'availabilities',
+            'documents',
+            'created_at',
+            'updated_at'
+        ]
+
 class UserSerializer(serializers.ModelSerializer):
     phlebotomist_profile = PhlebotomistSerializer(read_only=True)
+    client_profile = ClientSerializer(read_only=True)
 
     class Meta:
         model = models.User
@@ -51,6 +95,7 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'profile_picture',
             'phlebotomist_profile',
+            'client_profile',
             'created_at',
             'updated_at'
         ]
@@ -177,6 +222,144 @@ class PhlebotomistRegistrationSerializer(serializers.Serializer):
             for doc_data in documents_data:
                 models.Phlebotomist_document.objects.create(
                     phlebotomist=phlebotomist,
+                    **doc_data
+                )
+
+        return user
+
+class ClientRegistrationSerializer(serializers.Serializer):
+    # User fields
+    full_name = serializers.CharField(required=True, allow_blank=False)
+    email = serializers.EmailField(required=True, allow_blank=False)
+    password = serializers.CharField(write_only=True, required=True, allow_blank=False)
+    phone_number = serializers.CharField(required=True, allow_blank=False)
+    gender = serializers.ChoiceField(choices=models.User.GENDER_CHOICES, required=True)
+    dob = serializers.DateField(required=True)
+    role = serializers.ChoiceField(choices=models.User.ROLE_CHOICES, default=models.User.CLIENT, required=False)
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+
+    # Client profile fields
+    business_name = serializers.CharField(required=True, allow_blank=False)
+    business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=True)
+    business_address_street = serializers.CharField(required=True, allow_blank=False)
+    business_address_city = serializers.CharField(required=True, allow_blank=False)
+    business_address_state = serializers.CharField(required=True, allow_blank=False)
+    business_address_zip = serializers.CharField(required=True, allow_blank=False)
+    contact_person_name = serializers.CharField(required=True, allow_blank=False)
+    business_phone = serializers.CharField(required=True, allow_blank=False)
+    business_license_number = serializers.CharField(required=True, allow_blank=False)
+    business_description = serializers.CharField(required=True, allow_blank=False, style={'base_template': 'textarea.html'})
+    hourly_pay_rate = serializers.DecimalField(required=True, max_digits=10, decimal_places=2)
+    preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=True)
+    work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=True)
+    no_of_employees = serializers.IntegerField(min_value=0, required=False, default=0)
+    signature = serializers.ImageField(required=True, allow_null=False)
+
+    # Nested fields
+    availabilities = ClientWeeklyScheduleSerializer(many=True, required=True)
+    documents = ClientDocumentSerializer(many=True, required=True)
+
+    def validate_email(self, value):
+        if models.User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        if not any(char.isdigit() for char in value):
+            raise serializers.ValidationError("Password must contain at least one digit.")
+        if not any(char.isupper() for char in value):
+            raise serializers.ValidationError("Password must contain at least one uppercase letter.")
+        if not any(char.islower() for char in value):
+            raise serializers.ValidationError("Password must contain at least one lowercase letter.")
+        if not any(char in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for char in value):
+            raise serializers.ValidationError("Password must contain at least one special character.")
+        return value
+
+    def validate_availabilities(self, value):
+        if not value or len(value) == 0:
+            raise serializers.ValidationError("At least one availability slot is required.")
+        return value
+
+    def validate_documents(self, value):
+        if not value or len(value) == 0:
+            raise serializers.ValidationError("At least one document is required.")
+        for doc in value:
+            if not doc.get('document_file'):
+                raise serializers.ValidationError("Each document must include a document file.")
+        return value
+
+    def create(self, validated_data):
+        email = validated_data.pop('email')
+        password = validated_data.pop('password')
+        full_name = validated_data.pop('full_name')
+        phone_number = validated_data.pop('phone_number')
+        gender = validated_data.pop('gender')
+        dob = validated_data.pop('dob')
+        role = validated_data.get('role', models.User.CLIENT)
+        profile_picture = validated_data.pop('profile_picture', None)
+
+        business_name = validated_data.pop('business_name')
+        business_type = validated_data.pop('business_type')
+        business_address_street = validated_data.pop('business_address_street')
+        business_address_city = validated_data.pop('business_address_city')
+        business_address_state = validated_data.pop('business_address_state')
+        business_address_zip = validated_data.pop('business_address_zip')
+        contact_person_name = validated_data.pop('contact_person_name')
+        business_phone = validated_data.pop('business_phone')
+        business_license_number = validated_data.pop('business_license_number')
+        business_description = validated_data.pop('business_description')
+        hourly_pay_rate = validated_data.pop('hourly_pay_rate')
+        preferred_job_type = validated_data.pop('preferred_job_type')
+        work_preference = validated_data.pop('work_preference')
+        no_of_employees = validated_data.pop('no_of_employees', 0)
+        signature = validated_data.pop('signature')
+
+        availabilities_data = validated_data.pop('availabilities', [])
+        documents_data = validated_data.pop('documents', [])
+
+        from django.db import transaction
+        with transaction.atomic():
+            user = models.User.objects.create_user(
+                email=email,
+                password=password,
+                full_name=full_name,
+                phone_number=phone_number,
+                gender=gender,
+                dob=dob,
+                role=role,
+                profile_picture=profile_picture
+            )
+
+            client = models.Client.objects.create(
+                client=user,
+                business_name=business_name,
+                business_type=business_type,
+                business_address_street=business_address_street,
+                business_address_city=business_address_city,
+                business_address_state=business_address_state,
+                business_address_zip=business_address_zip,
+                contact_person_name=contact_person_name,
+                business_phone=business_phone,
+                business_license_number=business_license_number,
+                business_description=business_description,
+                hourly_pay_rate=hourly_pay_rate,
+                preferred_job_type=preferred_job_type,
+                work_preference=work_preference,
+                no_of_employees=no_of_employees,
+                signature=signature
+            )
+
+            for availability_data in availabilities_data:
+                models.ClientWeeklySchedule.objects.create(
+                    client=client,
+                    **availability_data
+                )
+
+            for doc_data in documents_data:
+                models.ClientDocument.objects.create(
+                    client=client,
                     **doc_data
                 )
 
