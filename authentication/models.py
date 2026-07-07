@@ -116,6 +116,8 @@ class Phlebotomist_document(models.Model):
     document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='phlebotomist_documents/')
     approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ('phlebotomist', 'document_name', 'approved')
@@ -182,6 +184,8 @@ class ClientDocument(models.Model):
     document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='client_documents/')
     approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ('client', 'document_name', 'approved')
