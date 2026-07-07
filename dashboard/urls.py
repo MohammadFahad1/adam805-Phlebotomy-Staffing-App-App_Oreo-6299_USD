@@ -2,5 +2,7 @@ from django.urls import path
 from dashboard import views
 
 urlpatterns = [
-    path('dashboard/', views.DashboardHomeView.as_view(), name='dashboard-home'),
+    # Dashboard Home page
+    path('home/', views.DashboardHomeView.as_view(), name='dashboard-home'),
+    path('home/pending-registrations/', views.PendingRegistrationsAPIView.as_view(), name='pending-registrations'),
 ]

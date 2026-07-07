@@ -113,7 +113,7 @@ class Phlebotomist_document(models.Model):
         (IDENTIFICATION, 'Identification'),
     ]
     phlebotomist = models.ForeignKey(Phlebotomist, on_delete=models.CASCADE, related_name='documents')
-    document_name = models.CharField(max_length=100)
+    document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='phlebotomist_documents/')
     approved = models.BooleanField(default=False)
     
@@ -179,7 +179,7 @@ class ClientDocument(models.Model):
         (SIGNATURE, 'signature'),
     ]
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
-    document_name = models.CharField(max_length=100)
+    document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='client_documents/')
     approved = models.BooleanField(default=False)
     
