@@ -1,4 +1,4 @@
-from phlebotomy_staffing.base import NewAPIView
+from phlebotomy_staffing.base import AutoPaginatedResponse, NewAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from dashboard import serializers
@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
 from authentication.serializers import EmptySerializer
-from authentication.models import Client, Phlebotomist
+from authentication.models import Client, ClientDocument, Phlebotomist, Phlebotomist_document
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
@@ -17,7 +17,7 @@ class DashboardHomeView(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints'])
+    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
     def get(self, request):
         """
         **Get Dashboard Home Data - Admin Only**\n
@@ -43,7 +43,7 @@ class PendingRegistrationsAPIView(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints'])
+    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
     def get(self, request):
         """
         **Get Pending Registrations - Admin Only**\n
@@ -117,7 +117,7 @@ class UserDetailForApproval(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get', 'patch']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints'])
+    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
     def get(self, request, user_id):
         """
         **Get User Detail for Approval - Admin Only**\n
@@ -236,7 +236,7 @@ class UserApprovalAPIView(NewAPIView):
     serializer_class = serializers.BooleanSerializer
     http_method_names = ['patch', 'delete']
 
-    @swagger_auto_schema(tags=["Dashboard Endpoints"])
+    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
     def patch(self, request, user_id):
         """
         **Approve or Reject User - Admin Only**\n
@@ -284,4 +284,164 @@ class UserApprovalAPIView(NewAPIView):
         action = "approved" if approve else "rejected"
         return Response({"detail": f"User {action} successfully."}, status=200)
 
+class UserDocumentApprovalAPIView(NewAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = serializers.BooleanSerializer
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
+    def patch(self, request, user_id, document_id):
+        """
+        **Approve or Reject User Document - Admin Only**\n
+        Approve or reject a specific user document (client or phlebotomist) for verification.\n
+        
+        **Parameters:**
+        - **document_id**: The ID of the document to approve or reject.
+        
+        **Request Body:**
+        - **approve**: Boolean value indicating whether to approve (true) or reject (false) the document.
+        
+        **Response:**
+        - **detail**: Message indicating the result of the operation.
+        
+        **Example Request Body**:
+        ```Json
+        {
+            "approve": true
+        }
+        ```
+        
+        **Example Response**:
+        ```Json
+        {
+            "detail": "Document approved successfully."
+        }
+        ```
+        """
+        user = get_object_or_404(User, id=user_id)
+        if user.role not in ["phlebotomist", "client"]:
+            return Response({"detail": "User is not a phlebotomist or client."}, status=400)
+        if user.role == "phlebotomist":
+            document = get_object_or_404(Phlebotomist_document, id=document_id, phlebotomist__user=user)
+        elif user.role == "client":
+            document = get_object_or_404(ClientDocument, id=document_id, client__client=user)
+        document.approved = request.data.get("approve")
+        document.save()
+        action = "approved" if document.approved else "rejected"
+        return Response({"detail": f"Document {action} successfully."}, status=200)
+
+# Documents to verify
+class PendingDocumentsAPIView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+    
+    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
+    def get(self, request):
+        """
+        **Get Pending Documents for Verification - Admin Only**\n
+        Retrieve a list of pending documents for verification for both clients and phlebotomists.\n
+        
+        **Query Parameters:**
+        - **page**: Page number (default: 1).
+        - **page_size**: Number of items per page (default: 10).
+        - **search**: Search query for user name or document name.
+        - **ordering**: Field to sort by (default: 'id').
+        - **filter**: Filter documents based on approval status.
+        
+        **Response:**
+        - **success**: Boolean indicating whether the request was successful.
+        - **pagination**: Pagination information.
+        - **results**: List of pending documents.
+        
+        **Example Response:**
+        ```
+        {
+        "success": true,
+        "pagination": {
+            "count": 8,
+            "total_pages": 1,
+            "current_page": 1,
+            "next": null,
+            "previous": null
+        },
+        "results": [
+                {
+                    "id": 1,
+                    "user_id": 2,
+                    "user_name": "Md. Fahad Monshi",
+                    "user_role": "Phlebotomist",
+                    "document_name": "Phlebotomy Certification",
+                    "document_file": "http://10.10.13.43:8001/media/phlebotomist_documents/Md_Fahad_Monshi_CV.pdf",
+                    "uploaded_on": "Jul 07, 2026",
+                    "uploaded_ago": "4 hours ago",
+                    "approved": false
+                },
+                {
+                    "id": 3,
+                    "user_id": 6,
+                    "user_name": "Abrar Ahmed",
+                    "user_role": "Phlebotomist",
+                    "document_name": "license",
+                    "document_file": "http://10.10.13.43:8001/media/phlebotomist_documents/Md_Fahad_Monshi_CV_d3YLHkF.pdf",
+                    "uploaded_on": "Jul 07, 2026",
+                    "uploaded_ago": "3 hours ago",
+                    "approved": null
+                }
+            ]
+        }
+        ```
+        """
+        from django.utils.timezone import now
+        from datetime import timedelta
+
+        # Helper: calculate relative time
+        def get_relative_time(upload_datetime):
+            delta = now() - upload_datetime
+            if delta < timedelta(minutes=1):
+                return "just now"
+            elif delta < timedelta(hours=1):
+                minutes = int(delta.total_seconds() / 60)
+                return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+            elif delta < timedelta(days=1):
+                hours = int(delta.total_seconds() / 3600)
+                return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            elif delta < timedelta(days=30):
+                days = delta.days
+                return f"{days} day{'s' if days != 1 else ''} ago"
+            elif delta < timedelta(days=365):
+                months = int(delta.days / 30)
+                return f"{months} month{'s' if months != 1 else ''} ago"
+            else:
+                years = int(delta.days / 365)
+                return f"{years} year{'s' if years != 1 else ''} ago"
+
+        phlebotomist_documents = Phlebotomist_document.objects.filter(Q(approved=False) | Q(approved=None)).select_related('phlebotomist__user')
+        client_documents = ClientDocument.objects.filter(Q(approved=False) | Q(approved=None)).select_related('client__client')
+        documents = []
+        for doc in phlebotomist_documents:
+            documents.append({
+                "id": doc.id,
+                "user_id": doc.phlebotomist.user.id,
+                "user_name": doc.phlebotomist.user.full_name,
+                "user_role": "Phlebotomist",
+                "document_name": doc.document_name,
+                "document_file": request.build_absolute_uri(doc.document_file.url),
+                "uploaded_on": doc.created_at.strftime("%b %d, %Y"),
+                "uploaded_ago": get_relative_time(doc.created_at),
+                "approved": doc.approved
+            })
+        for doc in client_documents:
+            documents.append({
+                "id": doc.id,
+                "user_id": doc.client.client.id,
+                "user_name": doc.client.client.full_name,
+                "user_role": "Client",
+                "document_name": doc.document_name,
+                "document_file": request.build_absolute_uri(doc.document_file.url),
+                "uploaded_on": doc.created_at.strftime("%b %d, %Y"),
+                "uploaded_ago": get_relative_time(doc.created_at),
+                "approved": doc.approved
+            })
+        return AutoPaginatedResponse(documents, request=request)
 
