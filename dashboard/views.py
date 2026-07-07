@@ -547,3 +547,209 @@ class UserListAPIView(APIView):
             })
         return AutoPaginatedResponse(data, request=request)
 
+class UserManagementDetailView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Dashboard - User Management Page'])
+    def get(self, request, user_id):
+        """
+        **Get Full User Details - Admin Only**\n
+        Returns a comprehensive profile for a single user including personal info,
+        professional info (phlebotomist only), activity summary, and document verification.\n
+
+        ### Parameters:
+        - **user_id**: The ID of the user to retrieve.
+
+        ### Response Sections:
+        - **header**: Name, role, status, member since, overall rating.
+        - **personal_information**: Email, phone, DOB, address, license number (phlebotomist).
+        - **professional_information**: Years of experience, skills (phlebotomist only).
+        - **activity_summary**: Jobs completed, success rate, last active.
+        - **document_verification**: List of uploaded documents with approval status.
+
+        ### Example Response:
+        ```json
+        {
+            "header": {
+                "user_id": 1,
+                "profile_picture": "http://localhost:8001/media/profile_pictures/kabita.jpg",
+                "full_name": "FA Kabita",
+                "role": "Phlebotomist",
+                "status": "active",
+                "member_since": "March 2025",
+                "overall_rating": 4.8
+            },
+            "personal_information": {
+                "email": "kabita@example.com",
+                "phone_number": "(555) 123-4567",
+                "dob": "March 15, 1990",
+                "address": "1234 XYZ, Dhaka-1216",
+                "license_number": "PHL-2023-789456"
+            },
+            "professional_information": {
+                "years_of_experience": 3.5,
+                "skills": ["Blood Collection", "IV Insertion"]
+            },
+            "activity_summary": {
+                "jobs_completed": 247,
+                "success_rate": 4.8,
+                "last_active": "2 hours ago"
+            },
+            "document_verification": [
+                {
+                    "id": 1,
+                    "document_name": "Phlebotomy License",
+                    "uploaded_on": "Jan 15, 2024",
+                    "document_file": "http://localhost:8001/media/phlebotomist_documents/license.pdf",
+                    "approved": true
+                }
+            ]
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Full user profile returned.
+        - **404 Not Found**: User does not exist.
+        """
+        from django.utils.timezone import now
+        from datetime import timedelta
+        from jobs.models import JobAssignment
+
+        user = get_object_or_404(
+            User.objects.select_related('phlebotomist_profile', 'client_profile')
+                        .prefetch_related(
+                            'phlebotomist_profile__documents',
+                            'phlebotomist_profile__skills',
+                            'client_profile__documents',
+                        ),
+            id=user_id
+        )
+
+        # ── Resolve profile ──────────────────────────────────────────────────
+        try:
+            profile = user.phlebotomist_profile
+            is_phlebotomist = True
+        except Exception:
+            try:
+                profile = user.client_profile
+                is_phlebotomist = False
+            except Exception:
+                profile = None
+                is_phlebotomist = False
+
+        # ── Status ───────────────────────────────────────────────────────────
+        def get_status(u, p, is_phleb):
+            if u.suspended:
+                return "suspended"
+            if not u.is_active:
+                return "inactive"
+            if p is None:
+                return "pending"
+            approval = p.approved if is_phleb else getattr(p, 'is_approved', None)
+            if approval is None:
+                return "pending"
+            if approval is False:
+                return "rejected"
+            return "active"
+
+        # ── Relative time helper ─────────────────────────────────────────────
+        def relative_time(dt):
+            if dt is None:
+                return "Never"
+            delta = now() - dt
+            if delta < timedelta(minutes=1):
+                return "just now"
+            elif delta < timedelta(hours=1):
+                m = int(delta.total_seconds() / 60)
+                return f"{m} minute{'s' if m != 1 else ''} ago"
+            elif delta < timedelta(days=1):
+                h = int(delta.total_seconds() / 3600)
+                return f"{h} hour{'s' if h != 1 else ''} ago"
+            elif delta < timedelta(days=30):
+                return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+            elif delta < timedelta(days=365):
+                mo = int(delta.days / 30)
+                return f"{mo} month{'s' if mo != 1 else ''} ago"
+            else:
+                yr = int(delta.days / 365)
+                return f"{yr} year{'s' if yr != 1 else ''} ago"
+
+        # ── Activity summary ─────────────────────────────────────────────────
+        if is_phlebotomist:
+            completed_assignments = JobAssignment.objects.filter(
+                phlebotomist=user, status='completed'
+            )
+            jobs_completed = completed_assignments.count()
+            total_applications = user.job_applications.count()
+            success_rate = round((jobs_completed / total_applications) * 5, 1) if total_applications > 0 else 0.0
+            last_assignment = completed_assignments.order_by('-end_time').first()
+            last_active = relative_time(last_assignment.end_time if last_assignment else None)
+        else:
+            completed_jobs = user.jobs.filter(status='completed').count() if profile else 0
+            jobs_completed = completed_jobs
+            success_rate = None
+            last_active = relative_time(user.updated_at)
+
+        # ── Personal information ─────────────────────────────────────────────
+        personal_info = {
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "dob": user.dob.strftime("%B %d, %Y") if user.dob else None,
+        }
+        if is_phlebotomist and profile:
+            personal_info["address"] = profile.address or profile.service_area
+            personal_info["license_number"] = profile.license_number
+        elif profile:
+            personal_info["address"] = (
+                f"{profile.business_address_street}, "
+                f"{profile.business_address_city}-{profile.business_address_zip}"
+            )
+
+        # ── Professional information (phlebotomist only) ──────────────────────
+        professional_info = None
+        if is_phlebotomist and profile:
+            professional_info = {
+                "years_of_experience": profile.years_of_experience,
+                "skills": [s.skill_name for s in profile.skills.all()],
+            }
+
+        # ── Document verification ─────────────────────────────────────────────
+        if profile:
+            docs = profile.documents.all()
+        else:
+            docs = []
+
+        documents = [
+            {
+                "id": doc.id,
+                "document_name": doc.document_name,
+                "uploaded_on": doc.created_at.strftime("%b %d, %Y"),
+                "document_file": request.build_absolute_uri(doc.document_file.url),
+                "approved": doc.approved,
+            }
+            for doc in docs
+        ]
+
+        # ── Build response ────────────────────────────────────────────────────
+        return Response({
+            "header": {
+                "user_id": user.id,
+                "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                "full_name": user.full_name,
+                "role": user.role.capitalize(),
+                "status": get_status(user, profile, is_phlebotomist),
+                "member_since": user.created_at.strftime("%B %Y"),
+                "overall_rating": success_rate,
+            },
+            "personal_information": personal_info,
+            "professional_information": professional_info,
+            "activity_summary": {
+                "jobs_completed": jobs_completed,
+                "success_rate": success_rate,
+                "last_active": last_active,
+            },
+            "document_verification": documents,
+        }, status=status.HTTP_200_OK)
+
