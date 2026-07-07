@@ -37,12 +37,33 @@ class Notification(models.Model):
         return f"Notification for {self.user}: {self.message}"
 
 class Report(models.Model):
+    INAPPROPRIATE_LANGUAGE = 'inappropriate_language'
+    HARASSMENT = 'harassment'
+    SPAM = 'spam'
+    FAKE_PROFILE = 'fake_profile'
+    OTHER = 'other'
+    REASON_CHOICES = [
+        (INAPPROPRIATE_LANGUAGE, 'Inappropriate Language'),
+        (HARASSMENT, 'Harassment'),
+        (SPAM, 'Spam'),
+        (FAKE_PROFILE, 'Fake Profile'),
+        (OTHER, 'Other'),
+    ]
+    
+    PENDING = 'pending'
+    REVIEWED = 'reviewed'
+    RESOLVED = 'resolved'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (REVIEWED, 'Reviewed'),
+        (RESOLVED, 'Resolved'),
+    ]
     reporter = models.ForeignKey('authentication.User', on_delete=models.CASCADE, related_name='reports_made')
     reported_user = models.ForeignKey('authentication.User', on_delete=models.CASCADE, related_name='reports_received')
     job = models.ForeignKey('jobs.Job', on_delete=models.SET_NULL, null=True, blank=True)
-    reason = models.CharField(max_length=255)
+    reason = models.CharField(max_length=255, choices=REASON_CHOICES)
     additional_details = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=50, default='pending')  # pending, reviewed, resolved
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=PENDING)
     admin_notes = models.TextField(blank=True, null=True)
     resolved_by = models.ForeignKey('authentication.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports_resolved')
     resolved_at = models.DateTimeField(null=True, blank=True)
