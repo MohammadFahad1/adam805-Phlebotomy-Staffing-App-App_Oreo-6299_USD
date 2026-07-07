@@ -28,6 +28,7 @@ class User(AbstractUser):
     dob = models.DateField()
     role = models.CharField(choices=ROLE_CHOICES, max_length=20)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    suspended = models.BooleanField(default=False)
     otp = models.CharField(max_length=6, null=True, blank=True)
     otp_created_at = models.DateTimeField(null=True, blank=True)
     forgot_password_token = models.CharField(max_length=6, null=True, blank=True)

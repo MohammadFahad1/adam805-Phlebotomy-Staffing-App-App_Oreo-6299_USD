@@ -9,6 +9,7 @@ from authentication.serializers import EmptySerializer
 from authentication.models import Client, ClientDocument, Phlebotomist, Phlebotomist_document
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from rest_framework.views import APIView
 
 User = get_user_model()
 
@@ -444,4 +445,32 @@ class PendingDocumentsAPIView(NewAPIView):
                 "approved": doc.approved
             })
         return AutoPaginatedResponse(documents, request=request)
+
+class SuspendUserAccount(APIView):
+    permission_classes = [IsAdminUser]
+    http_method_names = ['patch']
+    
+    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
+    def patch(self, request, user_id):
+        """
+        **Suspend User Account - Admin Only**\n
+        Suspend or unsuspend a specific user account - Admin Only\n
+        
+        **Parameters:**
+        - **user_id**: The ID of the user to suspend or unsuspend.
+        
+        **Response:**
+        - **detail**: Message indicating the result of the operation.
+        
+        **Example Response:**
+        ```Json
+        {
+            "detail": "User account suspended successfully."
+        }
+        ```
+        """
+        user = get_object_or_404(User, id=user_id)
+        user.suspended = True if user.suspended == False else False
+        user.save()
+        return Response({"detail": f"User account {'suspended' if user.suspended else 'unsuspended'} successfully."}, status=status.HTTP_200_OK)
 

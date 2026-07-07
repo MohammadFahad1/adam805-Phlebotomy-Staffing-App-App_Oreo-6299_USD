@@ -9,4 +9,5 @@ urlpatterns = [
     path('home/user-approval/<int:user_id>/', views.UserApprovalAPIView.as_view(), name='user-approval'),
     path('home/doc-approval/<int:user_id>/<int:document_id>/', views.UserDocumentApprovalAPIView.as_view(), name='user-document-approval'),
     path('home/pending-documents/', views.PendingDocumentsAPIView.as_view(), name='pending-documents'),
+    path('home/suspend-unsuspend/<int:user_id>/', views.SuspendUserAccount.as_view(), name='suspend-unsuspend'),
 ]

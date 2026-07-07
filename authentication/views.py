@@ -606,6 +606,9 @@ class UserLoginView(NewAPIView):
                 if user.role == 'client' and hasattr(user, 'client_profile') and user.client_profile.is_approved == False:
                     return Response({"success": False, "message": "Your account is rejected."}, status=status.HTTP_404_NOT_FOUND)
                 
+                if user.suspended:
+                    return Response({"success": False, "message": "Your account is suspended."}, status=status.HTTP_404_NOT_FOUND)
+                
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 refresh_token = str(refresh)
