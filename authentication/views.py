@@ -594,11 +594,17 @@ class UserLoginView(NewAPIView):
                 if not user.is_active:
                     return Response({"success": False, "message": "Account is not active. Please activate your account first."}, status=status.HTTP_403_FORBIDDEN)
                 
-                if user.role == 'phlebotomist' and hasattr(user, 'phlebotomist_profile') and not user.phlebotomist_profile.approved:
+                if user.role == 'phlebotomist' and hasattr(user, 'phlebotomist_profile') and user.phlebotomist_profile.approved == None:
                     return Response({"success": False, "message": "Your account is not approved yet."}, status=status.HTTP_404_NOT_FOUND)
                 
-                if user.role == 'client' and hasattr(user, 'client_profile') and not user.client_profile.is_approved:
+                if user.role == 'phlebotomist' and hasattr(user, 'phlebotomist_profile') and user.phlebotomist_profile.approved == False:
+                    return Response({"success": False, "message": "Your account is rejected."}, status=status.HTTP_404_NOT_FOUND)
+                
+                if user.role == 'client' and hasattr(user, 'client_profile') and user.client_profile.is_approved == None:
                     return Response({"success": False, "message": "Your account is not approved yet."}, status=status.HTTP_404_NOT_FOUND)
+                
+                if user.role == 'client' and hasattr(user, 'client_profile') and user.client_profile.is_approved == False:
+                    return Response({"success": False, "message": "Your account is rejected."}, status=status.HTTP_404_NOT_FOUND)
                 
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
