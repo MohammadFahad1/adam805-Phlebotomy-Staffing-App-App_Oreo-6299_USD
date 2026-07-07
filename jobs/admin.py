@@ -7,14 +7,12 @@ from .models import Job, JobApplication, JobAssignment, JobTemplate
 class JobApplicationInline(admin.TabularInline):
     model = JobApplication
     extra = 0
-    raw_id_fields = ('phlebotomist',)
     readonly_fields = ('applied_at',)
 
 
 class JobAssignmentInline(admin.StackedInline):
     model = JobAssignment
     extra = 0
-    raw_id_fields = ('phlebotomist', 'client')
     readonly_fields = ('created_at',)
     fieldsets = (
         (None, {
@@ -47,7 +45,6 @@ class JobAdmin(admin.ModelAdmin):
     list_filter = ('status', 'professional_type', 'job_type', 'pay_type', 'shift_date', 'created_at')
     search_fields = ('id', 'title', 'city', 'client__full_name', 'client__email')
     list_editable = ('status',)  # Change job life-cycles on the fly without entering detail menus
-    raw_id_fields = ('client',)
     
     inlines = [JobApplicationInline, JobAssignmentInline]
     
@@ -84,7 +81,6 @@ class JobApplicationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'applied_at')
     list_editable = ('status',)
     search_fields = ('job__id', 'job__title', 'phlebotomist__full_name', 'phlebotomist__email')
-    raw_id_fields = ('job', 'phlebotomist')
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('job', 'phlebotomist')
@@ -108,7 +104,6 @@ class JobAssignmentAdmin(admin.ModelAdmin):
     list_filter = ('status', 'signed_by_phlebotomist', 'signed_by_client', 'created_at')
     list_editable = ('status',)
     search_fields = ('job__id', 'job__title', 'phlebotomist__full_name', 'client__full_name')
-    raw_id_fields = ('job', 'phlebotomist', 'client')
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('job', 'phlebotomist', 'client')
