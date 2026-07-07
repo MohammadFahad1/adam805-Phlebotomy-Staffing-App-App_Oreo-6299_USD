@@ -13,12 +13,13 @@ from rest_framework.views import APIView
 
 User = get_user_model()
 
+# Dashboard Home Page Endpoints
 class DashboardHomeView(NewAPIView):
     serializer_class = serializers.DashboardHomeSerializer
     permission_classes = [IsAdminUser]
     http_method_names = ['get']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
+    @swagger_auto_schema(tags=['Dashboard - Dashboard Page'])
     def get(self, request):
         """
         **Get Dashboard Home Data - Admin Only**\n
@@ -44,7 +45,7 @@ class PendingRegistrationsAPIView(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
+    @swagger_auto_schema(tags=['Dashboard - Dashboard Page'])
     def get(self, request):
         """
         **Get Pending Registrations - Admin Only**\n
@@ -118,7 +119,7 @@ class UserDetailForApproval(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get', 'patch']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
+    @swagger_auto_schema(tags=['Dashboard - Dashboard Page'])
     def get(self, request, user_id):
         """
         **Get User Detail for Approval - Admin Only**\n
@@ -237,7 +238,7 @@ class UserApprovalAPIView(NewAPIView):
     serializer_class = serializers.BooleanSerializer
     http_method_names = ['patch', 'delete']
 
-    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
+    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def patch(self, request, user_id):
         """
         **Approve or Reject User - Admin Only**\n
@@ -290,7 +291,7 @@ class UserDocumentApprovalAPIView(NewAPIView):
     serializer_class = serializers.BooleanSerializer
     http_method_names = ['patch']
 
-    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
+    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def patch(self, request, user_id, document_id):
         """
         **Approve or Reject User Document - Admin Only**\n
@@ -337,7 +338,7 @@ class PendingDocumentsAPIView(NewAPIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['get']
     
-    @swagger_auto_schema(tags=['Dashboard Endpoints - Dashboard Page'])
+    @swagger_auto_schema(tags=['Dashboard - Dashboard Page'])
     def get(self, request):
         """
         **Get Pending Documents for Verification - Admin Only**\n
@@ -450,7 +451,7 @@ class SuspendUserAccount(APIView):
     permission_classes = [IsAdminUser]
     http_method_names = ['patch']
     
-    @swagger_auto_schema(tags=["Dashboard Endpoints - Dashboard Page"])
+    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def patch(self, request, user_id):
         """
         **Suspend User Account - Admin Only**\n
@@ -473,4 +474,76 @@ class SuspendUserAccount(APIView):
         user.suspended = True if user.suspended == False else False
         user.save()
         return Response({"detail": f"User account {'suspended' if user.suspended else 'unsuspended'} successfully."}, status=status.HTTP_200_OK)
+
+
+# Dashboard User Managements Views
+class UserListAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+    
+    @swagger_auto_schema(tags=["Dashboard - User Management Page"])
+    def get(self, request):
+        """
+        **Get User List - Admin Only**\n
+        Get a list of all users registered on the platform.\n
+        
+        **Response:**
+        - **users**: A list of user objects.
+        
+        **Example Response:**
+        ```Json
+        {
+            "result": [
+                {
+                    "id": 1,
+                    "profile_picture": "http://localhost:8001/media/profile_pictures/fahad_Fc2dmEM.jpg",
+                    "full_name": "John Doe",
+                    "role": "phlebotomist",
+                    "status": "active",
+                    "joined_at": "Jan 12, 2024"
+                },
+                {
+                    "id": 2,
+                    "profile_picture": "http://localhost:8001/media/profile_pictures/fahad_Fc2dmEM.jpg",
+                    "full_name": "Jane Doe",
+                    "role": "client",
+                    "status": "active",
+                    "joined_at": "Jan 12, 2024"
+                }
+            ]
+        }
+        ```
+        """
+        users = User.objects.select_related('phlebotomist_profile', 'client_profile').all()
+
+        def get_user_status(user):
+            if user.suspended:
+                return "suspended"
+            if not user.is_active:
+                return "inactive"
+            # Resolve profile approval field (phlebotomist uses 'approved', client uses 'is_approved')
+            try:
+                approval = user.phlebotomist_profile.approved
+            except Exception:
+                try:
+                    approval = user.client_profile.is_approved
+                except Exception:
+                    approval = None
+            if approval is None:
+                return "pending"
+            if approval is False:
+                return "rejected"
+            return "active"
+
+        data = []
+        for user in users:
+            data.append({
+                "id": user.id,
+                "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                "full_name": user.full_name,
+                "role": user.role,
+                "status": get_user_status(user),
+                "joined_at": user.created_at.strftime("%b %d, %Y")
+            })
+        return AutoPaginatedResponse(data, request=request)
 

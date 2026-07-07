@@ -10,4 +10,8 @@ urlpatterns = [
     path('home/doc-approval/<int:user_id>/<int:document_id>/', views.UserDocumentApprovalAPIView.as_view(), name='user-document-approval'),
     path('home/pending-documents/', views.PendingDocumentsAPIView.as_view(), name='pending-documents'),
     path('home/suspend-unsuspend/<int:user_id>/', views.SuspendUserAccount.as_view(), name='suspend-unsuspend'),
+    
+    # Dashboard User Managements
+    path('user-managements/', views.UserListAPIView.as_view(), name='user-managements'),
+    # path('user-managements/user-details/<int:user_id>/', views.UserDetailsView.as_view(), name='user-details'),
 ]
