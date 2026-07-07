@@ -27,4 +27,5 @@ urlpatterns = [
    path('auth/', include('authentication.urls')),
    path('dashboard/', include('dashboard.urls')),
    path('jobs/', include('jobs.urls')),
+   path('communication/', include('communication.urls')),
 ] + debug_toolbar_urls()
