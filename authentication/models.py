@@ -73,7 +73,7 @@ class Phlebotomist(models.Model):
     work_preference = models.CharField(choices=WORK_PREFERENCE_CHOICES, max_length=100)
     service_area = models.CharField(max_length=255)
     address = models.CharField(max_length=255, blank=True, null=True)
-    approved = models.BooleanField(default=None)
+    approved = models.BooleanField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -115,7 +115,7 @@ class Phlebotomist_document(models.Model):
     phlebotomist = models.ForeignKey(Phlebotomist, on_delete=models.CASCADE, related_name='documents')
     document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='phlebotomist_documents/')
-    approved = models.BooleanField(default=False)
+    approved = models.BooleanField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -166,7 +166,7 @@ class Client(models.Model):
     work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
     no_of_employees = models.PositiveIntegerField(default=0)
     signature = models.ImageField(upload_to='client_signatures/', null=True, blank=True)
-    is_approved = models.BooleanField(default=None)
+    is_approved = models.BooleanField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -183,7 +183,7 @@ class ClientDocument(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
     document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
     document_file = models.FileField(upload_to='client_documents/')
-    approved = models.BooleanField(default=False)
+    approved = models.BooleanField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -207,4 +207,4 @@ class ClientWeeklySchedule(models.Model):
     
     def __str__(self):
         return f"Availability for {self.client.client.full_name} on {self.date} from {self.start_time} to {self.end_time}"
-# Client models End Here
+# Client models End Herepy
