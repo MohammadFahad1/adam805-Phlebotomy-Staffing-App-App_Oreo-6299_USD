@@ -16,6 +16,7 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
+   url="https://3m5p7646-8001.inc1.devtunnels.ms"
 )
 
 urlpatterns = [
@@ -25,4 +26,5 @@ urlpatterns = [
    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
    path('auth/', include('authentication.urls')),
    path('dashboard/', include('dashboard.urls')),
+   path('jobs/', include('jobs.urls')),
 ] + debug_toolbar_urls()
