@@ -73,7 +73,7 @@ class Phlebotomist(models.Model):
     work_preference = models.CharField(choices=WORK_PREFERENCE_CHOICES, max_length=100)
     service_area = models.CharField(max_length=255)
     address = models.CharField(max_length=255, blank=True, null=True)
-    approved = models.BooleanField(default=False)
+    approved = models.BooleanField(default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -166,7 +166,7 @@ class Client(models.Model):
     work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
     no_of_employees = models.PositiveIntegerField(default=0)
     signature = models.ImageField(upload_to='client_signatures/', null=True, blank=True)
-    is_approved = models.BooleanField(default=False)
+    is_approved = models.BooleanField(default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

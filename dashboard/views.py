@@ -127,6 +127,43 @@ class UserDetailForApproval(NewAPIView):
         
         **Response:**
         - **user_detail**: Detailed information about the user.
+        
+        **Example Response**:
+        ```Json
+        {
+            "id": 4,
+            "profile_picture": "http://localhost:8001/media/profile_pictures/vehicle_damage_unclear_B9g79tl.jpg",
+            "name": "Sami Nafis",
+            "email": "nafis@gmail.com",
+            "phone_number": "01772211521",
+            "gender": "male",
+            "dob": "1996-04-20",
+            "role": "client",
+            "registration_date": "2026-07-07",
+            "experience": null,
+            "address": "Bir Sreshtho AK Khandokar Road, Mohakhali, Dhaka, Bangladesh, 1212",
+            "is_approved": false,
+            "uploaded_documents": [
+                {
+                    "id": 1,
+                    "document_name": "business_license",
+                    "file_name": "vehicle_damage_Hq03rqP.jpeg",
+                    "file_size": "9.1 KB",
+                    "document_file": "http://localhost:8001/media/client_documents/vehicle_damage_Hq03rqP.jpeg",
+                    "uploaded_on": "July 07, 2026",
+                    "approved": false
+                },
+                {
+                    "id": 2,
+                    "document_name": "identification",
+                    "file_name": "2222_p5phAuO.jpg",
+                    "file_size": "1.2 MB",
+                    "document_file": "http://localhost:8001/media/client_documents/2222_p5phAuO.jpg",
+                    "uploaded_on": "July 07, 2026",
+                    "approved": false
+                }
+            ]
+        }
         ```
         """
         user = get_object_or_404(User.objects.select_related("phlebotomist_profile", "client_profile").prefetch_related("phlebotomist_profile__documents", "client_profile__documents"), id=user_id)
@@ -144,11 +181,25 @@ class UserDetailForApproval(NewAPIView):
             except (FileNotFoundError, OSError):
                 return None
 
-        docs = (
-            user.phlebotomist_profile.documents.all()
-            if hasattr(user, 'phlebotomist_profile')
-            else user.client_profile.documents.all()
-        )
+        # Safely resolve the profile — catch RelatedObjectDoesNotExist in case
+        # a user row exists without a completed profile (e.g. interrupted registration).
+        try:
+            phlebotomist_profile = user.phlebotomist_profile
+        except Exception:
+            phlebotomist_profile = None
+
+        try:
+            client_profile = user.client_profile
+        except Exception:
+            client_profile = None
+
+        is_phlebotomist = phlebotomist_profile is not None
+        profile = phlebotomist_profile if is_phlebotomist else client_profile
+
+        if profile is None:
+            return Response({"detail": "User profile not found."}, status=404)
+
+        docs = profile.documents.all()
 
         return Response(
             {
@@ -161,10 +212,12 @@ class UserDetailForApproval(NewAPIView):
                 "dob": user.dob,
                 "role": user.role,
                 "registration_date": user.created_at.strftime("%Y-%m-%d"),
-                "experience": user.phlebotomist_profile.years_of_experience if hasattr(user, 'phlebotomist_profile') else None,
-                "address": f"{user.phlebotomist_profile.service_area}" if hasattr(user, 'phlebotomist_profile') else f"{user.client_profile.business_address_street}, {user.client_profile.business_address_city}, {user.client_profile.business_address_state}, {user.client_profile.business_address_zip}",
+                "experience": phlebotomist_profile.years_of_experience if is_phlebotomist else None,
+                "address": phlebotomist_profile.service_area if is_phlebotomist else f"{client_profile.business_address_street}, {client_profile.business_address_city}, {client_profile.business_address_state}, {client_profile.business_address_zip}",
+                "is_approved": phlebotomist_profile.approved if is_phlebotomist else client_profile.is_approved,
                 "uploaded_documents": [
                     {
+                        "id": doc.id,
                         "document_name": doc.document_name,
                         "file_name": doc.document_file.name.split("/")[-1],
                         "file_size": format_file_size(doc.document_file),
