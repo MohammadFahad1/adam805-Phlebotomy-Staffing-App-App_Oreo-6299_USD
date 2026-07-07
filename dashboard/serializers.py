@@ -76,4 +76,5 @@ class DashboardHomeSerializer(serializers.Serializer):
     def get_response_time(self, obj):
         return f"{2.3:.1f}"
 
-
+class BooleanSerializer(serializers.Serializer):
+    approve = serializers.BooleanField(required=True)

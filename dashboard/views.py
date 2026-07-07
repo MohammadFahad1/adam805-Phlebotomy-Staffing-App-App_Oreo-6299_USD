@@ -8,6 +8,7 @@ from drf_yasg.utils import swagger_auto_schema
 from authentication.serializers import EmptySerializer
 from authentication.models import Client, Phlebotomist
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -19,7 +20,7 @@ class DashboardHomeView(NewAPIView):
     @swagger_auto_schema(tags=['Dashboard Endpoints'])
     def get(self, request):
         """
-        **Get Dashboard Home Data**\n
+        **Get Dashboard Home Data - Admin Only**\n
         Retrieve data for the dashboard home page.\n
         
         **Response:**
@@ -45,7 +46,7 @@ class PendingRegistrationsAPIView(NewAPIView):
     @swagger_auto_schema(tags=['Dashboard Endpoints'])
     def get(self, request):
         """
-        **Get Pending Registrations**\n
+        **Get Pending Registrations - Admin Only**\n
         Retrieve a list of pending registrations for clients and phlebotomists.\n
         
         **Response:**
@@ -81,8 +82,8 @@ class PendingRegistrationsAPIView(NewAPIView):
         }
         ```
         """
-        phlebotomists = Phlebotomist.objects.filter(approved=False)
-        clients = Client.objects.filter(is_approved=False)
+        phlebotomists = Phlebotomist.objects.filter(Q(approved=False) | Q(approved=None)).select_related('user')
+        clients = Client.objects.filter(Q(is_approved=False) | Q(is_approved=None)).select_related('client')
         users = []
         for phlebotomist in phlebotomists:
             users.append({
@@ -114,12 +115,12 @@ class PendingRegistrationsAPIView(NewAPIView):
 class UserDetailForApproval(NewAPIView):
     serializer_class = EmptySerializer
     permission_classes = [IsAdminUser]
-    http_method_names = ['get']
+    http_method_names = ['get', 'patch']
     
     @swagger_auto_schema(tags=['Dashboard Endpoints'])
     def get(self, request, user_id):
         """
-        **Get User Detail for Approval**\n
+        **Get User Detail for Approval - Admin Only**\n
         Retrieve detailed information about a specific user (client or phlebotomist) for approval purposes.\n
         
         **Parameters:**
@@ -229,5 +230,58 @@ class UserDetailForApproval(NewAPIView):
                 ],
             }
         )
+
+class UserApprovalAPIView(NewAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = serializers.BooleanSerializer
+    http_method_names = ['patch', 'delete']
+
+    @swagger_auto_schema(tags=["Dashboard Endpoints"])
+    def patch(self, request, user_id):
+        """
+        **Approve or Reject User - Admin Only**\n
+        Approve or reject a specific user (client or phlebotomist) for registration.\n
+        
+        **Parameters:**
+        - **user_id**: The ID of the user to approve or reject.
+        
+        **Request Body:**
+        - **approve**: Boolean value indicating whether to approve (true) or reject (false) the user.
+        
+        **Response:**
+        - **detail**: Message indicating the result of the operation.
+        
+        **Example Request Body**:
+        ```Json
+        {
+            "approve": true
+        }
+        ```
+        
+        **Example Response**:
+        ```Json
+        {
+            "detail": "User approved successfully."
+        }
+        ```
+        """
+        user = get_object_or_404(User.objects.select_related("phlebotomist_profile", "client_profile").filter(role__in=["phlebotomist", "client"]), id=user_id)
+
+        is_phlebotomist = hasattr(user, 'phlebotomist_profile')
+        profile = user.phlebotomist_profile if is_phlebotomist else user.client_profile
+
+        if profile is None:
+            return Response({"detail": "User profile not found."}, status=404)
+
+        approve = request.data.get("approve")
+        if approve is None:
+            return Response({"detail": "Missing 'approve' field in request body."}, status=400)
+
+        profile.approved = approve if is_phlebotomist else None
+        profile.is_approved = approve if not is_phlebotomist else None
+        profile.save()
+
+        action = "approved" if approve else "rejected"
+        return Response({"detail": f"User {action} successfully."}, status=200)
 
 
