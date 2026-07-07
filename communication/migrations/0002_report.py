@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('communication', '0001_initial'),
-        ('jobs', '0006_rename_signed_by_provider_jobassignment_signed_by_client_and_more'),
+        ('jobs', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

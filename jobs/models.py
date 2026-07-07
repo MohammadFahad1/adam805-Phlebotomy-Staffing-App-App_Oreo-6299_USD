@@ -41,7 +41,7 @@ class Job(models.Model):
         (FULL_DAY, 'Full Day'),
         (PART_TIME, 'Part Time'),
     ]
-    id = models.CharField(max_length=20, unique=True, primary_key=True)
+    job_id = models.CharField(max_length=20, unique=True, blank=True, editable=False, db_index=True)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs') 
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -51,7 +51,7 @@ class Job(models.Model):
     shift_date = models.DateField() 
     shift_start = models.TimeField()
     shift_end = models.TimeField()
-    duration_hours = models.IntegerField()
+    duration_hours = models.IntegerField(blank=True, null=True)
     pay_type = models.CharField(max_length=50, choices=PAY_TYPE_CHOICES, default=HOURLY)
     pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
     professional_type = models.CharField(max_length=100, choices=PROFESSIONAL_TYPE_CHOICES, default=CERTIFIED_PHLEBOTOMIST)
@@ -61,15 +61,15 @@ class Job(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # First save to get the auto-incremented pk, then generate id
         super().save(*args, **kwargs)
-        if not self.id:
+        # After first insert pk is a real integer — generate job_id
+        if not self.job_id:
             year = self.created_at.year
-            self.id = f"JB-{str(year)[-2:]}-{self.pk:06d}"
-            Job.objects.filter(pk=self.pk).update(id=self.id)
+            self.job_id = f"JB-{str(year)[-2:]}-{self.pk:06d}"
+            Job.objects.filter(pk=self.pk).update(job_id=self.job_id)
 
     def __str__(self):
-        return f"{self.id} - {self.title}"
+        return f"{self.job_id} - {self.title}"
 
 class JobApplication(models.Model):
     PENDING = 'pending'
