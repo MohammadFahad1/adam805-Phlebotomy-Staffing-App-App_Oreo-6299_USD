@@ -14,4 +14,5 @@ urlpatterns = [
     # Dashboard User Managements
     path('user-managements/', views.UserListAPIView.as_view(), name='user-managements'),
     path('user-managements/<int:user_id>/', views.UserManagementDetailView.as_view(), name='user-management-detail'),
+    path('user-managements/<int:user_id>/edit/', views.UserManagementEditView.as_view(), name='user-management-edit'),
 ]

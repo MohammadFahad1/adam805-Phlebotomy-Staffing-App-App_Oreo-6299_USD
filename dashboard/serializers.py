@@ -78,3 +78,110 @@ class DashboardHomeSerializer(serializers.Serializer):
 
 class BooleanSerializer(serializers.Serializer):
     approve = serializers.BooleanField(required=True)
+
+
+# ── Nested helpers ────────────────────────────────────────────────────────────
+
+class AvailabilitySlotSerializer(serializers.Serializer):
+    day        = serializers.CharField(help_text="Day name, e.g. 'Monday'.")
+    date       = serializers.DateField(help_text="Date in YYYY-MM-DD format.")
+    start_time = serializers.TimeField(help_text="Start time in HH:MM format.")
+    end_time   = serializers.TimeField(help_text="End time in HH:MM format.")
+    is_available = serializers.BooleanField(default=True, required=False)
+
+
+# ── Phlebotomist edit serializer ──────────────────────────────────────────────
+
+class PhlebotomistProfileEditSerializer(serializers.Serializer):
+    """All fields are optional — only send what you want to change."""
+
+    # User fields
+    full_name       = serializers.CharField(required=False, help_text="Full legal name.")
+    email           = serializers.EmailField(required=False, help_text="Unique email address.")
+    phone_number    = serializers.CharField(required=False, help_text="Contact phone number.")
+    gender          = serializers.ChoiceField(choices=[('male', 'Male'), ('female', 'Female')], required=False)
+    dob             = serializers.DateField(required=False, help_text="Date of birth in YYYY-MM-DD format.")
+    profile_picture = serializers.ImageField(required=False, allow_null=True, help_text="Profile picture image file.")
+
+    # Phlebotomist profile fields
+    license_number      = serializers.CharField(required=False)
+    license_expiry_date = serializers.DateField(required=False, help_text="YYYY-MM-DD.")
+    years_of_experience = serializers.IntegerField(required=False, min_value=0)
+    specialty = serializers.ChoiceField(
+        choices=[
+            ('general_phlebotomy',      'General Phlebotomy'),
+            ('iv_insertion_or_therapy', 'IV Insertion/Therapy'),
+            ('oncology_or_chemotherapy','Oncology/Chemotherapy'),
+            ('medical_nurse',           'Medical Nurse'),
+        ],
+        required=False,
+    )
+    work_preference = serializers.ChoiceField(
+        choices=[('part_time', 'Part-time'), ('full_time', 'Full-time')],
+        required=False,
+    )
+    service_area = serializers.CharField(required=False)
+    address      = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    # Nested — full replace when provided
+    skills         = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text='List of skill names. Replaces all existing skills, e.g. ["venipuncture", "iv_insertion"].',
+    )
+    availabilities = AvailabilitySlotSerializer(
+        many=True,
+        required=False,
+        help_text="List of availability slots. Replaces all existing slots.",
+    )
+
+
+# ── Client edit serializer ────────────────────────────────────────────────────
+
+class ClientProfileEditSerializer(serializers.Serializer):
+    """All fields are optional — only send what you want to change."""
+
+    # User fields
+    full_name       = serializers.CharField(required=False, help_text="Full legal name.")
+    email           = serializers.EmailField(required=False, help_text="Unique email address.")
+    phone_number    = serializers.CharField(required=False)
+    gender          = serializers.ChoiceField(choices=[('male', 'Male'), ('female', 'Female')], required=False)
+    dob             = serializers.DateField(required=False, help_text="Date of birth in YYYY-MM-DD format.")
+    profile_picture = serializers.ImageField(required=False, allow_null=True, help_text="Profile picture image file.")
+
+    # Client profile fields
+    business_name           = serializers.CharField(required=False)
+    business_type           = serializers.ChoiceField(
+        choices=[('healthcare', 'Healthcare'), ('individual', 'Individual')],
+        required=False,
+    )
+    business_address_street = serializers.CharField(required=False)
+    business_address_city   = serializers.CharField(required=False)
+    business_address_state  = serializers.CharField(required=False)
+    business_address_zip    = serializers.CharField(required=False)
+    contact_person_name     = serializers.CharField(required=False)
+    business_phone          = serializers.CharField(required=False)
+    business_license_number = serializers.CharField(required=False)
+    business_description    = serializers.CharField(required=False, style={'base_template': 'textarea.html'})
+    hourly_pay_rate         = serializers.DecimalField(required=False, max_digits=10, decimal_places=2)
+    preferred_job_type      = serializers.ChoiceField(
+        choices=[
+            ('in_clinic_phlebotomy', 'In-Clinic Phlebotomy'),
+            ('mobile_blood_draw',    'Mobile Blood Draw'),
+            ('laboratory_testing',   'Laboratory Testing'),
+        ],
+        required=False,
+    )
+    work_preference  = serializers.ChoiceField(
+        choices=[('part_time', 'Part-time'), ('full_time', 'Full-time')],
+        required=False,
+    )
+    no_of_employees = serializers.IntegerField(required=False, min_value=0)
+    signature       = serializers.ImageField(required=False, allow_null=True, help_text="Signature image file.")
+
+    # Nested — full replace when provided
+    availabilities = AvailabilitySlotSerializer(
+        many=True,
+        required=False,
+        help_text="List of availability slots. Replaces all existing slots.",
+    )
