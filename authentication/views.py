@@ -658,7 +658,7 @@ class PhlebotomistProfileUpdateView(NewAPIView):
     )
     def patch(self, request):
         """
-        **Update Phlebotomist Profile**\n
+        **Update Phlebotomist Profile - Phlebotomist Only**\n
         Allows authenticated phlebotomists to update their own profile information.
         All fields are optional — send only what you want to change.\n
 
@@ -897,7 +897,7 @@ class ClientProfileUpdateView(NewAPIView):
     )
     def patch(self, request):
         """
-        **Update Client Profile**\n
+        **Update Client Profile - Client Only**\n
         Allows authenticated clients to update their own profile information.
         All fields are optional — send only what you want to change.\n
 
@@ -1107,7 +1107,7 @@ class PhlebotomistProfileView(NewAPIView):
     @swagger_auto_schema(tags=['Profile Management'])
     def get(self, request):
         """
-        **Get Phlebotomist Profile**\n
+        **Get Phlebotomist Profile - Phlebotomist Only**\n
         Returns the full profile of the authenticated phlebotomist including
         credentials, skills, activity stats, and ratings & reviews.\n
 
@@ -1283,7 +1283,7 @@ class ClientProfileView(NewAPIView):
     @swagger_auto_schema(tags=['Profile Management'])
     def get(self, request):
         """
-        **Get Client Profile**\n
+        **Get Client Profile - Client Only**\n
         Returns the full profile of the authenticated client including
         business information, documents, activity stats, and ratings & reviews.\n
 
