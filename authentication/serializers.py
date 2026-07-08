@@ -388,3 +388,66 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 class EmptySerializer(serializers.Serializer):
     pass
+
+
+# Profile Update Serializers
+class AvailabilitySlotSerializer(serializers.Serializer):
+    class Meta:
+        ref_name = 'AuthAvailabilitySlot'
+
+    day = serializers.CharField()
+    date = serializers.DateField()
+    start_time = serializers.TimeField()
+    end_time = serializers.TimeField()
+    is_available = serializers.BooleanField(default=True, required=False)
+
+
+class PhlebotomistProfileUpdateSerializer(serializers.Serializer):
+    """All fields optional — send only what you want to change."""
+    # User fields
+    full_name = serializers.CharField(required=False)
+    phone_number = serializers.CharField(required=False)
+    gender = serializers.ChoiceField(choices=models.User.GENDER_CHOICES, required=False)
+    dob = serializers.DateField(required=False)
+    
+    # Profile fields
+    license_number = serializers.CharField(required=False)
+    license_expiry_date = serializers.DateField(required=False)
+    years_of_experience = serializers.IntegerField(required=False, min_value=0)
+    specialty = serializers.ChoiceField(choices=models.Phlebotomist.SPECIALTY_CHOICES, required=False)
+    work_preference = serializers.ChoiceField(choices=models.Phlebotomist.WORK_PREFERENCE_CHOICES, required=False)
+    service_area = serializers.CharField(required=False)
+    address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
+    # Nested — full replace
+    skills = serializers.ListField(child=serializers.CharField(), required=False)
+    availabilities = AvailabilitySlotSerializer(many=True, required=False)
+
+
+class ClientProfileUpdateSerializer(serializers.Serializer):
+    """All fields optional — send only what you want to change."""
+    # User fields
+    full_name = serializers.CharField(required=False)
+    phone_number = serializers.CharField(required=False)
+    gender = serializers.ChoiceField(choices=models.User.GENDER_CHOICES, required=False)
+    dob = serializers.DateField(required=False)
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+    
+    # Profile fields
+    business_name = serializers.CharField(required=False)
+    business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=False)
+    business_address_street = serializers.CharField(required=False)
+    business_address_city = serializers.CharField(required=False)
+    business_address_state = serializers.CharField(required=False)
+    business_address_zip = serializers.CharField(required=False)
+    contact_person_name = serializers.CharField(required=False)
+    business_phone = serializers.CharField(required=False)
+    business_license_number = serializers.CharField(required=False)
+    business_description = serializers.CharField(required=False, style={'base_template': 'textarea.html'})
+    hourly_pay_rate = serializers.DecimalField(required=False, max_digits=10, decimal_places=2)
+    preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=False)
+    work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=False)
+    no_of_employees = serializers.IntegerField(required=False, min_value=0)
+    
+    # Nested — full replace
+    availabilities = AvailabilitySlotSerializer(many=True, required=False)

@@ -83,6 +83,9 @@ class BooleanSerializer(serializers.Serializer):
 # ── Nested helpers ────────────────────────────────────────────────────────────
 
 class AvailabilitySlotSerializer(serializers.Serializer):
+    class Meta:
+        ref_name = 'DashboardAvailabilitySlot'
+
     day        = serializers.CharField(help_text="Day name, e.g. 'Monday'.")
     date       = serializers.DateField(help_text="Date in YYYY-MM-DD format.")
     start_time = serializers.TimeField(help_text="Start time in HH:MM format.")

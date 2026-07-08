@@ -10,6 +10,10 @@ urlpatterns = [
     path('login/', views.UserLoginView.as_view(), name='login'),
     path('account/delete/', views.AccountDeleteAPIView.as_view(), name='account-delete'),
     
+    # Profile Update Endpoints
+    path('profile/phlebotomist/update/', views.PhlebotomistProfileUpdateView.as_view(), name='phlebotomist-profile-update'),
+    path('profile/client/update/', views.ClientProfileUpdateView.as_view(), name='client-profile-update'),
+    
     # Forget Password Endpoints
     path('forget-password/', views.RequestForgetPasswordAPIView.as_view(), name='forget-password'),
     path('verify-otp/', views.VerifyForgetPasswordOTPAPIView.as_view(), name='verify-otp'),

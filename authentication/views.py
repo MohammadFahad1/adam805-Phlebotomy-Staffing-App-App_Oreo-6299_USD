@@ -630,4 +630,473 @@ class UserLoginView(NewAPIView):
         return Response({"success": False, "message": "Invalid input data."}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Phlebotomist Profile Update View
+class PhlebotomistProfileUpdateView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(
+        tags=['Authentication'],
+        manual_parameters=[
+            openapi.Parameter('full_name',            openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('phone_number',         openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('gender',               openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['male', 'female']),
+            openapi.Parameter('dob',                  openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='YYYY-MM-DD'),
+            openapi.Parameter('profile_picture',      openapi.IN_FORM, type=openapi.TYPE_FILE,    required=False),
+            openapi.Parameter('license_number',       openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('license_expiry_date',  openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='YYYY-MM-DD'),
+            openapi.Parameter('years_of_experience',  openapi.IN_FORM, type=openapi.TYPE_INTEGER, required=False),
+            openapi.Parameter('specialty',            openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['general_phlebotomy', 'iv_insertion_or_therapy', 'oncology_or_chemotherapy', 'medical_nurse']),
+            openapi.Parameter('work_preference',      openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['part_time', 'full_time']),
+            openapi.Parameter('service_area',         openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('address',              openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('skills',               openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='JSON array of skill names, e.g. ["venipuncture","iv_insertion"]'),
+            openapi.Parameter('availabilities',       openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='JSON array of slots: [{"day":"Monday","date":"2025-09-01","start_time":"09:00","end_time":"17:00","is_available":true}]'),
+        ],
+        consumes=['multipart/form-data'],
+    )
+    def patch(self, request):
+        """
+        **Update Phlebotomist Profile**\n
+        Allows authenticated phlebotomists to update their own profile information.
+        All fields are optional — send only what you want to change.\n
+
+        ### Editable User Fields:
+        - `full_name` (string)
+        - `phone_number` (string)
+        - `gender` (string): `male`, `female`
+        - `dob` (date): `YYYY-MM-DD`
+        - `profile_picture` (file)
+
+        ### Editable Profile Fields:
+        - `license_number` (string)
+        - `license_expiry_date` (date): `YYYY-MM-DD`
+        - `years_of_experience` (integer)
+        - `specialty` (string)
+        - `work_preference` (string)
+        - `service_area` (string)
+        - `address` (string)
+        - `skills` (list): replaces all skills
+        - `availabilities` (list): replaces all availability slots
+
+        ### Restricted Fields (cannot update):
+        - `email`, `role`, `suspended`, `approved`, `password` (use separate change password endpoint)
+
+        ### Example Request:
+        ```json
+        {
+            "full_name": "Jane Doe",
+            "phone_number": "1234567890",
+            "years_of_experience": 5,
+            "skills": ["venipuncture", "iv_insertion"]
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Profile updated successfully.
+        - **400 Bad Request**: Validation error.
+        - **403 Forbidden**: User is not a phlebotomist.
+        """
+        user = request.user
+        if user.role != 'phlebotomist':
+            return Response(
+                {"detail": "Only phlebotomists can use this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            profile = user.phlebotomist_profile
+        except Exception:
+            return Response(
+                {"detail": "Phlebotomist profile not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        data = request.data
+        errors = {}
+
+        # ── User fields ───────────────────────────────────────────────────────
+        user_dirty = False
+
+        if 'full_name' in data:
+            if not data['full_name'].strip():
+                errors['full_name'] = ["This field may not be blank."]
+            else:
+                user.full_name = data['full_name'].strip()
+                user_dirty = True
+
+        if 'phone_number' in data:
+            if not data['phone_number'].strip():
+                errors['phone_number'] = ["This field may not be blank."]
+            else:
+                user.phone_number = data['phone_number'].strip()
+                user_dirty = True
+
+        if 'gender' in data:
+            valid = [c[0] for c in models.User.GENDER_CHOICES]
+            if data['gender'] not in valid:
+                errors['gender'] = [f"Invalid choice. Valid options: {valid}"]
+            else:
+                user.gender = data['gender']
+                user_dirty = True
+
+        if 'dob' in data:
+            import datetime
+            try:
+                user.dob = datetime.date.fromisoformat(data['dob'])
+                user_dirty = True
+            except ValueError:
+                errors['dob'] = ["Invalid date format. Use YYYY-MM-DD."]
+
+        if 'profile_picture' in request.FILES:
+            user.profile_picture = request.FILES['profile_picture']
+            user_dirty = True
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Profile fields ────────────────────────────────────────────────────
+        profile_dirty = False
+
+        if 'license_number' in data:
+            profile.license_number = data['license_number'].strip()
+            profile_dirty = True
+
+        if 'license_expiry_date' in data:
+            import datetime
+            try:
+                profile.license_expiry_date = datetime.date.fromisoformat(data['license_expiry_date'])
+                profile_dirty = True
+            except ValueError:
+                errors['license_expiry_date'] = ["Invalid date format. Use YYYY-MM-DD."]
+
+        if 'years_of_experience' in data:
+            try:
+                val = int(data['years_of_experience'])
+                if val < 0:
+                    errors['years_of_experience'] = ["Must be non-negative."]
+                else:
+                    profile.years_of_experience = val
+                    profile_dirty = True
+            except (ValueError, TypeError):
+                errors['years_of_experience'] = ["Enter a valid integer."]
+
+        if 'specialty' in data:
+            valid = [c[0] for c in models.Phlebotomist.SPECIALTY_CHOICES]
+            if data['specialty'] not in valid:
+                errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
+            else:
+                profile.specialty = data['specialty']
+                profile_dirty = True
+
+        if 'work_preference' in data:
+            valid = [c[0] for c in models.Phlebotomist.WORK_PREFERENCE_CHOICES]
+            if data['work_preference'] not in valid:
+                errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+            else:
+                profile.work_preference = data['work_preference']
+                profile_dirty = True
+
+        if 'service_area' in data:
+            profile.service_area = data['service_area'].strip()
+            profile_dirty = True
+
+        if 'address' in data:
+            profile.address = data['address'].strip() if data['address'] else None
+            profile_dirty = True
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                if user_dirty:
+                    user.save()
+                if profile_dirty:
+                    profile.save()
+
+                # ── Skills: full replace ──────────────────────────────────────
+                if 'skills' in data:
+                    raw = data['skills']
+                    if isinstance(raw, str):
+                        import json as json_mod
+                        try:
+                            raw = json_mod.loads(raw)
+                        except json_mod.JSONDecodeError:
+                            return Response({'skills': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                    if not isinstance(raw, list):
+                        return Response({'skills': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                    profile.skills.all().delete()
+                    for skill_name in raw:
+                        if skill_name:
+                            models.Phlebotomist_skill.objects.get_or_create(phlebotomist=profile, skill_name=skill_name.strip())
+
+                # ── Availabilities: full replace ──────────────────────────────
+                if 'availabilities' in data:
+                    raw = data['availabilities']
+                    if isinstance(raw, str):
+                        import json as json_mod
+                        try:
+                            raw = json_mod.loads(raw)
+                        except json_mod.JSONDecodeError:
+                            return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                    if not isinstance(raw, list):
+                        return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                    profile.availabilities.all().delete()
+                    import datetime
+                    for slot in raw:
+                        try:
+                            models.PhlebotomistAvailability.objects.create(
+                                phlebotomist=profile,
+                                day=slot['day'],
+                                date=datetime.date.fromisoformat(slot['date']),
+                                start_time=datetime.time.fromisoformat(slot['start_time']),
+                                end_time=datetime.time.fromisoformat(slot['end_time']),
+                                is_available=slot.get('is_available', True),
+                            )
+                        except (KeyError, ValueError) as e:
+                            raise ValueError(f"Invalid slot data: {e}")
+        except ValueError as e:
+            return Response({'availabilities': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Profile updated successfully."}, status=status.HTTP_200_OK)
+
+
+# Client Profile Update View
+class ClientProfileUpdateView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(
+        tags=['Authentication'],
+        manual_parameters=[
+            openapi.Parameter('full_name',                  openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('phone_number',               openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('gender',                     openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['male', 'female']),
+            openapi.Parameter('dob',                        openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='YYYY-MM-DD'),
+            openapi.Parameter('profile_picture',            openapi.IN_FORM, type=openapi.TYPE_FILE,    required=False),
+            openapi.Parameter('business_name',              openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_type',              openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['healthcare', 'individual']),
+            openapi.Parameter('business_address_street',    openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_address_city',      openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_address_state',     openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_address_zip',       openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('contact_person_name',        openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_phone',             openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_license_number',    openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('business_description',       openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
+            openapi.Parameter('hourly_pay_rate',            openapi.IN_FORM, type=openapi.TYPE_NUMBER,  required=False),
+            openapi.Parameter('preferred_job_type',         openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['in_clinic_phlebotomy', 'mobile_blood_draw', 'laboratory_testing']),
+            openapi.Parameter('work_preference',            openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, enum=['part_time', 'full_time']),
+            openapi.Parameter('availabilities',             openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False, description='JSON array of slots: [{"day":"Monday","date":"2025-09-01","start_time":"09:00","end_time":"17:00","is_available":true}]'),
+        ],
+        consumes=['multipart/form-data'],
+    )
+    def patch(self, request):
+        """
+        **Update Client Profile**\n
+        Allows authenticated clients to update their own profile information.
+        All fields are optional — send only what you want to change.\n
+
+        ### Editable User Fields:
+        - `full_name` (string)
+        - `phone_number` (string)
+        - `gender` (string): `male`, `female`
+        - `dob` (date): `YYYY-MM-DD`
+        - `profile_picture` (file)
+
+        ### Editable Profile Fields:
+        - `business_name` (string)
+        - `business_type` (string)
+        - `business_address_street` (string)
+        - `business_address_city` (string)
+        - `business_address_state` (string)
+        - `business_address_zip` (string)
+        - `contact_person_name` (string)
+        - `business_phone` (string)
+        - `business_license_number` (string)
+        - `business_description` (string)
+        - `hourly_pay_rate` (decimal)
+        - `preferred_job_type` (string)
+        - `work_preference` (string)
+        - `no_of_employees` (integer)
+        - `availabilities` (list): replaces all availability slots
+
+        ### Restricted Fields (cannot update):
+        - `email`, `role`, `suspended`, `is_approved`, `signature`, `password`
+
+        ### Example Request:
+        ```json
+        {
+            "business_name": "New Clinic Name",
+            "business_address_city": "Los Angeles",
+            "hourly_pay_rate": "35.00"
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Profile updated successfully.
+        - **400 Bad Request**: Validation error.
+        - **403 Forbidden**: User is not a client.
+        """
+        user = request.user
+        if user.role != 'client':
+            return Response(
+                {"detail": "Only clients can use this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            profile = user.client_profile
+        except Exception:
+            return Response(
+                {"detail": "Client profile not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        data = request.data
+        errors = {}
+
+        # ── User fields ───────────────────────────────────────────────────────
+        user_dirty = False
+
+        if 'full_name' in data:
+            if not data['full_name'].strip():
+                errors['full_name'] = ["This field may not be blank."]
+            else:
+                user.full_name = data['full_name'].strip()
+                user_dirty = True
+
+        if 'phone_number' in data:
+            if not data['phone_number'].strip():
+                errors['phone_number'] = ["This field may not be blank."]
+            else:
+                user.phone_number = data['phone_number'].strip()
+                user_dirty = True
+
+        if 'gender' in data:
+            valid = [c[0] for c in models.User.GENDER_CHOICES]
+            if data['gender'] not in valid:
+                errors['gender'] = [f"Invalid choice. Valid options: {valid}"]
+            else:
+                user.gender = data['gender']
+                user_dirty = True
+
+        if 'dob' in data:
+            import datetime
+            try:
+                user.dob = datetime.date.fromisoformat(data['dob'])
+                user_dirty = True
+            except ValueError:
+                errors['dob'] = ["Invalid date format. Use YYYY-MM-DD."]
+
+        if 'profile_picture' in request.FILES:
+            user.profile_picture = request.FILES['profile_picture']
+            user_dirty = True
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Validate choices first ───────────────────────────────────────────
+        if 'business_type' in data:
+            valid = [c[0] for c in models.Client.BUSINESS_TYPE_CHOICES]
+            if data['business_type'] not in valid:
+                errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
+
+        if 'preferred_job_type' in data:
+            valid = [c[0] for c in models.Client.JOB_PREFERENCE_CHOICES]
+            if data['preferred_job_type'] not in valid:
+                errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+
+        if 'work_preference' in data:
+            valid = [c[0] for c in models.Client.WORK_PREFERENCE_CHOICES]
+            if data['work_preference'] not in valid:
+                errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+
+        if 'no_of_employees' in data:
+            try:
+                val = int(data['no_of_employees'])
+                if val < 0:
+                    errors['no_of_employees'] = ["Must be non-negative."]
+            except (ValueError, TypeError):
+                errors['no_of_employees'] = ["Enter a valid integer."]
+
+        if 'hourly_pay_rate' in data:
+            from decimal import Decimal, InvalidOperation
+            try:
+                val = Decimal(str(data['hourly_pay_rate']))
+                if val < 0:
+                    errors['hourly_pay_rate'] = ["Must be a positive value."]
+            except InvalidOperation:
+                errors['hourly_pay_rate'] = ["Enter a valid decimal number."]
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Profile fields ────────────────────────────────────────────────────
+        from django.db import transaction
+        from decimal import Decimal
+
+        try:
+            with transaction.atomic():
+                if user_dirty:
+                    user.save()
+
+                profile_dirty = False
+                str_fields = [
+                    'business_name', 'business_type', 'business_address_street',
+                    'business_address_city', 'business_address_state', 'business_address_zip',
+                    'contact_person_name', 'business_phone', 'business_license_number',
+                    'business_description', 'preferred_job_type', 'work_preference',
+                ]
+                for field in str_fields:
+                    if field in data:
+                        setattr(profile, field, data[field].strip() if data[field] else '')
+                        profile_dirty = True
+
+                if 'no_of_employees' in data:
+                    profile.no_of_employees = int(data['no_of_employees'])
+                    profile_dirty = True
+
+                if 'hourly_pay_rate' in data:
+                    profile.hourly_pay_rate = Decimal(str(data['hourly_pay_rate']))
+                    profile_dirty = True
+
+                if profile_dirty:
+                    profile.save()
+
+                # ── Availabilities: full replace ──────────────────────────────
+                if 'availabilities' in data:
+                    raw = data['availabilities']
+                    if isinstance(raw, str):
+                        import json as json_mod
+                        try:
+                            raw = json_mod.loads(raw)
+                        except json_mod.JSONDecodeError:
+                            return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                    if not isinstance(raw, list):
+                        return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                    profile.availabilities.all().delete()
+                    import datetime
+                    for slot in raw:
+                        try:
+                            models.ClientWeeklySchedule.objects.create(
+                                client=profile,
+                                day=slot['day'],
+                                date=datetime.date.fromisoformat(slot['date']),
+                                start_time=datetime.time.fromisoformat(slot['start_time']),
+                                end_time=datetime.time.fromisoformat(slot['end_time']),
+                                is_available=slot.get('is_available', True),
+                            )
+                        except (KeyError, ValueError) as e:
+                            raise ValueError(f"Invalid slot data: {e}")
+        except ValueError as e:
+            return Response({'availabilities': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Profile updated successfully."}, status=status.HTTP_200_OK)
+
+
 
