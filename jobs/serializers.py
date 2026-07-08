@@ -35,7 +35,7 @@ class JobCreateSerializer(serializers.Serializer):
     shift_end = serializers.TimeField(
         help_text="Shift end time in HH:MM (24-hour) format."
     )
-    duration_hours = serializers.IntegerField(
+    shift_duration = serializers.IntegerField(
         required=False,
         allow_null=True,
         min_value=0,

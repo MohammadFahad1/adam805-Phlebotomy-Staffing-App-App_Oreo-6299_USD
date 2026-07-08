@@ -42,7 +42,7 @@ class JobCreateView(NewAPIView):
 
         ### Optional Fields:
         - `city` (string): City where the job is located.
-        - `duration_hours` (integer): Estimated shift duration in hours. Defaults to `0` if omitted.
+        - `shift_duration` (integer): Estimated shift duration in hours. Defaults to `0` if omitted.
 
         ### Notes:
         - `job_id` is auto-generated in the format `#JB-YY-NNNNNN` and returned in the response.
@@ -59,7 +59,7 @@ class JobCreateView(NewAPIView):
             "shift_date": "2025-09-01",
             "shift_start": "09:00",
             "shift_end": "18:00",
-            "duration_hours": 9,
+            "shift_duration": 9,
             "pay_type": "hourly",
             "pay_rate": "30.00",
             "job_type": "full_day"
@@ -148,11 +148,11 @@ class JobCreateView(NewAPIView):
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         # Use provided duration or calculate from shift times
-        if data.get('duration_hours'):
-            duration_hours = int(data['duration_hours'])
+        if data.get('shift_duration'):
+            shift_duration = int(data['shift_duration'])
         else:
             delta = datetime.datetime.combine(datetime.date.min, shift_end) - datetime.datetime.combine(datetime.date.min, shift_start)
-            duration_hours = int(delta.total_seconds() // 3600)
+            shift_duration = int(delta.total_seconds() // 3600)
 
         job = Job.objects.create(
             client=request.user,
@@ -164,7 +164,7 @@ class JobCreateView(NewAPIView):
             shift_date=shift_date,
             shift_start=shift_start,
             shift_end=shift_end,
-            duration_hours=duration_hours,
+            shift_duration=shift_duration,
             pay_type=data['pay_type'],
             pay_rate=pay_rate,
             job_type=data['job_type'],

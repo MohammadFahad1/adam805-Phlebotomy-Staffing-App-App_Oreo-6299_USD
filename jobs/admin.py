@@ -53,7 +53,7 @@ class JobAdmin(admin.ModelAdmin):
             'fields': ('id', 'client', 'title', 'description', 'status')
         }),
         ('Logistics & Shift Schedule', {
-            'fields': ('location', 'city', 'shift_date', ('shift_start', 'shift_end'), ('shift_duration', 'duration_hours'))
+            'fields': ('location', 'city', 'shift_date', ('shift_start', 'shift_end'), 'shift_duration')
         }),
         ('Compensation & Role Specifics', {
             'fields': (('pay_type', 'pay_rate'), ('professional_type', 'job_type'))
@@ -128,7 +128,7 @@ class JobTemplateAdmin(admin.ModelAdmin):
             'fields': ('title', 'description', 'status')
         }),
         ('Default Requirements & Logistics', {
-            'fields': ('location', 'city', 'shift_date', ('shift_start', 'shift_end'), ('shift_duration', 'duration_hours'))
+            'fields': ('location', 'city', 'shift_date', ('shift_start', 'shift_end'), 'shift_duration')
         }),
         ('Financials & Classification', {
             'fields': (('pay_type', 'pay_rate'), ('professional_type', 'job_type'))

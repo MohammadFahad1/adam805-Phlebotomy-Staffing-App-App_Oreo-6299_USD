@@ -41,7 +41,7 @@ class Job(models.Model):
         (FULL_DAY, 'Full Day'),
         (PART_TIME, 'Part Time'),
     ]
-    job_id = models.CharField(max_length=20, unique=True, blank=True, editable=False, db_index=True)
+    id = models.CharField(max_length=20, unique=True, primary_key=True)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs') 
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -51,7 +51,6 @@ class Job(models.Model):
     shift_date = models.DateField() 
     shift_start = models.TimeField()
     shift_end = models.TimeField()
-    duration_hours = models.IntegerField(blank=True, null=True)
     pay_type = models.CharField(max_length=50, choices=PAY_TYPE_CHOICES, default=HOURLY)
     pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
     professional_type = models.CharField(max_length=100, choices=PROFESSIONAL_TYPE_CHOICES, default=CERTIFIED_PHLEBOTOMIST)
@@ -61,15 +60,33 @@ class Job(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        if not self.id:
+            from django.utils import timezone
+            year = timezone.now().year
+            year_suffix = str(year)[-2:]
+            prefix = f"JB-{year_suffix}-"
+            
+            # Query for the highest existing ID with this prefix to get the next sequential number
+            last_job = Job.objects.filter(id__startswith=prefix).order_by('-id').first()
+            if last_job:
+                try:
+                    parts = last_job.id.split('-')
+                    if len(parts) >= 3:
+                        last_num = int(parts[-1])
+                        next_num = last_num + 1
+                    else:
+                        next_num = 1
+                except (ValueError, IndexError):
+                    next_num = 1
+            else:
+                next_num = 1
+            
+            self.id = f"{prefix}{next_num:06d}"
+            
         super().save(*args, **kwargs)
-        # After first insert pk is a real integer — generate job_id
-        if not self.job_id:
-            year = self.created_at.year
-            self.job_id = f"JB-{str(year)[-2:]}-{self.pk:06d}"
-            Job.objects.filter(pk=self.pk).update(job_id=self.job_id)
 
     def __str__(self):
-        return f"{self.job_id} - {self.title}"
+        return f"{self.id} - {self.title}"
 
 class JobApplication(models.Model):
     PENDING = 'pending'
@@ -166,7 +183,6 @@ class JobTemplate(models.Model):
     shift_date = models.DateField() 
     shift_start = models.TimeField()
     shift_end = models.TimeField()
-    duration_hours = models.IntegerField()
     pay_type = models.CharField(max_length=50, choices=PAY_TYPE_CHOICES, default=HOURLY)
     pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
     professional_type = models.CharField(max_length=100, choices=PROFESSIONAL_TYPE_CHOICES, default=CERTIFIED_PHLEBOTOMIST)
