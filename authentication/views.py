@@ -637,7 +637,7 @@ class PhlebotomistProfileUpdateView(NewAPIView):
     http_method_names = ['patch']
 
     @swagger_auto_schema(
-        tags=['Authentication'],
+        tags=['Profile Management'],
         manual_parameters=[
             openapi.Parameter('full_name',            openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
             openapi.Parameter('phone_number',         openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
@@ -871,7 +871,7 @@ class ClientProfileUpdateView(NewAPIView):
     http_method_names = ['patch']
 
     @swagger_auto_schema(
-        tags=['Authentication'],
+        tags=['Profile Management'],
         manual_parameters=[
             openapi.Parameter('full_name',                  openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
             openapi.Parameter('phone_number',               openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
@@ -1099,4 +1099,176 @@ class ClientProfileUpdateView(NewAPIView):
         return Response({"message": "Profile updated successfully."}, status=status.HTTP_200_OK)
 
 
+class PhlebotomistProfileView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get']
 
+    @swagger_auto_schema(tags=['Profile Management'])
+    def get(self, request):
+        """
+        **Get Phlebotomist Profile**\n
+        Returns the full profile of the authenticated phlebotomist including
+        credentials, skills, activity stats, and ratings & reviews.\n
+
+        ### Response Sections:
+        - **header**: Name, specialty, profile picture, rating summary, gender.
+        - **stats**: Jobs completed, success rate, years of experience.
+        - **credentials**: License and certification documents with approval and expiry.
+        - **skills**: List of skill names.
+        - **ratings_and_reviews**: Overall rating, total reviews, and recent review list.
+
+        ### Example Response:
+        ```json
+        {
+            "header": {
+                "full_name": "FA Kabita",
+                "specialty": "general_phlebotomy",
+                "profile_picture": "http://localhost:8000/media/profile_pictures/kabita.jpg",
+                "overall_rating": 4.9,
+                "total_reviews": 127,
+                "gender": "female"
+            },
+            "stats": {
+                "jobs_completed": 247,
+                "success_rate": "98%",
+                "years_of_experience": 3
+            },
+            "credentials": [
+                {
+                    "id": 1,
+                    "document_name": "license",
+                    "approved": true,
+                    "expiry_date": "12/2025",
+                    "document_file": "http://localhost:8000/media/phlebotomist_documents/license.pdf"
+                }
+            ],
+            "skills": ["Blood Collection", "IV Insertion"],
+            "ratings_and_reviews": {
+                "overall_rating": 4.9,
+                "total_reviews": 127,
+                "reviews": [
+                    {
+                        "reviewer_name": "Fariha Tasnim",
+                        "reviewer_picture": null,
+                        "rating": 5,
+                        "comment": "Excellent service! Highly recommend.",
+                        "reviewed_ago": "2 days ago"
+                    }
+                ]
+            }
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Profile returned.
+        - **403 Forbidden**: User is not a phlebotomist.
+        - **404 Not Found**: Profile not found.
+        """
+        from django.utils.timezone import now
+        from datetime import timedelta
+        from django.db.models import Avg, Count
+        from jobs.models import JobAssignment
+        from communication.models import Review
+
+        user = request.user
+
+        if user.role != 'phlebotomist':
+            return Response(
+                {"detail": "Only phlebotomists can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            profile = user.phlebotomist_profile
+        except Exception:
+            return Response(
+                {"detail": "Phlebotomist profile not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # ── Relative time helper ──────────────────────────────────────────────
+        def time_ago(dt):
+            delta = now() - dt
+            if delta < timedelta(minutes=1):
+                return "just now"
+            elif delta < timedelta(hours=1):
+                m = int(delta.total_seconds() / 60)
+                return f"{m} minute{'s' if m != 1 else ''} ago"
+            elif delta < timedelta(days=1):
+                h = int(delta.total_seconds() / 3600)
+                return f"{h} hour{'s' if h != 1 else ''} ago"
+            elif delta < timedelta(days=30):
+                return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+            elif delta < timedelta(days=365):
+                mo = int(delta.days / 30)
+                return f"{mo} month{'s' if mo != 1 else ''} ago"
+            else:
+                yr = int(delta.days / 365)
+                return f"{yr} year{'s' if yr != 1 else ''} ago"
+
+        # ── Stats ─────────────────────────────────────────────────────────────
+        total_assignments  = user.assignments.count()
+        completed_assignments = user.assignments.filter(status='completed').count()
+        success_rate = (
+            f"{round((completed_assignments / total_assignments) * 100)}%"
+            if total_assignments > 0 else "0%"
+        )
+
+        # ── Ratings & Reviews ─────────────────────────────────────────────────
+        reviews_qs = Review.objects.filter(
+            reviewed=user
+        ).select_related('reviewer').order_by('-created_at')
+
+        rating_data  = reviews_qs.aggregate(avg=Avg('rating'), total=Count('id'))
+        overall_rating = round(rating_data['avg'] or 0, 1)
+        total_reviews  = rating_data['total']
+
+        recent_reviews = [
+            {
+                "reviewer_name":    r.reviewer.full_name,
+                "reviewer_picture": request.build_absolute_uri(r.reviewer.profile_picture.url) if r.reviewer.profile_picture else None,
+                "rating":           r.rating,
+                "comment":          r.comment,
+                "reviewed_ago":     time_ago(r.created_at),
+            }
+            for r in reviews_qs[:10]
+        ]
+
+        # ── Credentials ───────────────────────────────────────────────────────
+        credentials = [
+            {
+                "id":            doc.id,
+                "document_name": doc.document_name,
+                "approved":      doc.approved,
+                "expiry_date":   profile.license_expiry_date.strftime("%m/%Y") if doc.document_name == 'license' else None,
+                "document_file": request.build_absolute_uri(doc.document_file.url),
+            }
+            for doc in profile.documents.all()
+        ]
+
+        return Response(
+            {
+                "header": {
+                    "full_name":       user.full_name,
+                    "specialty":       profile.specialty,
+                    "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    "overall_rating":  overall_rating,
+                    "total_reviews":   total_reviews,
+                    "gender":          user.gender,
+                },
+                "stats": {
+                    "jobs_completed":     completed_assignments,
+                    "success_rate":       success_rate,
+                    "years_of_experience": profile.years_of_experience,
+                },
+                "credentials":  credentials,
+                "skills":       [s.skill_name for s in profile.skills.all()],
+                "ratings_and_reviews": {
+                    "overall_rating": overall_rating,
+                    "total_reviews":  total_reviews,
+                    "reviews":        recent_reviews,
+                },
+            },
+            status=status.HTTP_200_OK
+        )

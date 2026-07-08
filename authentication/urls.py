@@ -13,6 +13,7 @@ urlpatterns = [
     # Profile Update Endpoints
     path('profile/phlebotomist/update/', views.PhlebotomistProfileUpdateView.as_view(), name='phlebotomist-profile-update'),
     path('profile/client/update/', views.ClientProfileUpdateView.as_view(), name='client-profile-update'),
+    path('profile/phlebotomist/', views.PhlebotomistProfileView.as_view(), name='phlebotomist-profile'),
     
     # Forget Password Endpoints
     path('forget-password/', views.RequestForgetPasswordAPIView.as_view(), name='forget-password'),
