@@ -28,4 +28,5 @@ urlpatterns = [
    path('dashboard/', include('dashboard.urls')),
    path('jobs/', include('jobs.urls')),
    path('communication/', include('communication.urls')),
+   path('appointments/', include('appointments.urls')),
 ] + debug_toolbar_urls()

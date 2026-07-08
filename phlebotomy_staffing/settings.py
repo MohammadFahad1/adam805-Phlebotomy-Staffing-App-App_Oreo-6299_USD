@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'dashboard',
     'jobs',
     'communication',
+    'appointments',
 ]
 
 MIDDLEWARE = [
