@@ -2,6 +2,10 @@ from django.urls import path
 from jobs import views
 
 urlpatterns = [
-    # Job Endpoints
-    path('post/', views.JobCreateView.as_view(), name='job-create'),
+    # Client Job Endpoints
+    path('client/post/', views.JobCreateView.as_view(), name='job-create'),
+    path('client/list/', views.JobListForClient.as_view(), name='client-job-list'),
+    path('client/templates/', views.JobTemplateListForClient.as_view(), name='client-job-templates'),
+    path('client/templates/<int:pk>/', views.JobTemplateDetailView.as_view(), name='client-job-template-detail'),
+
 ]

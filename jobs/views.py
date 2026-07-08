@@ -12,7 +12,7 @@ from authentication.permissions import IsApprovedClient
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework.views import APIView
-from jobs.models import Job
+from jobs.models import Job, JobTemplate
 from jobs.serializers import JobCreateSerializer
 
 User = get_user_model()
@@ -178,4 +178,365 @@ class JobCreateView(NewAPIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+class JobListForClient(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedClient]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['App (Client) - Job Posting'])
+    def get(self, request):
+        """
+        **Get Job List for Client - Approved Clients Only**\n
+
+        Retrieve a list of jobs posted by the logged-in client, structured to support the visual listing tabs (All, New Job, Assigned, Completed) and search input.
+
+        ### Query Parameters:
+        - `filter` (string, optional): Tab selection filter. Choices: `all` (default), `new_job`, `assigned`, `completed`.
+        - `search` (string, optional): Search keyword to match job title, location, or city.
+        - `page` (integer, optional): Page number (default: 1).
+        - `page_size` (integer, optional): Number of items per page (default: 10).
+
+        ### Action Status (UI Action Button states):
+        - `Completed`: Job is finished (`completed`).
+        - `Assigned`: Phlebotomist is assigned (`in_progress`).
+        - `Invite`: Job is open (`open`).
+        - `Pending Approval`: Job is pending admin verification (`pending_approval`).
+        - `Draft`: Job is in draft (`draft`).
+        - `Cancelled`: Job has been cancelled (`cancelled`).
+
+        ### Example Response:
+        ```json
+        {
+            "success": true,
+            "pagination": {
+                "count": 1,
+                "total_pages": 1,
+                "current_page": 1,
+                "next": null,
+                "previous": null
+            },
+            "results": [
+                {
+                    "id": "JB-26-000001",
+                    "title": "Blood Draw Service",
+                    "business_name": "Metro General Hospital",
+                    "professional_type": "Certified Phlebotomist",
+                    "distance": "2.3 miles away",
+                    "shift_time": "11:00 PM - 07:00 AM",
+                    "shift_duration": "3 hours",
+                    "shift_date": "Aug 15, 2025",
+                    "pay_rate": "$30/hr",
+                    "job_type": "Full Day",
+                    "status": "open",
+                    "action_status": "Invite",
+                    "created_at": "2026-07-08 02:00:00"
+                }
+            ]
+        }
+        ```
+        """
+        # 1. Parse the tab filter parameter and remove it from query_params so AutoPaginatedResponse doesn't filter on it
+        tab = request.query_params.get('filter', 'all').lower()
+        if 'filter' in request.GET:
+            qd = request.GET.copy()
+            qd.pop('filter', None)
+            request._request.GET = qd
+            if hasattr(request, '_query_params'):
+                try:
+                    delattr(request, '_query_params')
+                except AttributeError:
+                    pass
+
+        queryset = Job.objects.filter(client=request.user).select_related('client__client_profile')
+
+        # 1. Apply tab-based filter
+        if tab == 'new_job':
+            queryset = queryset.filter(status__in=[Job.DRAFT, Job.PENDING_APPROVAL, Job.OPEN])
+        elif tab == 'assigned':
+            queryset = queryset.filter(status=Job.IN_PROGRESS)
+        elif tab == 'completed':
+            queryset = queryset.filter(status=Job.COMPLETED)
+
+        # 2. Apply search query
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(location__icontains=search_query) |
+                Q(city__icontains=search_query)
+            )
+
+        queryset = queryset.order_by('-created_at')
+
+        # 3. Serialize data manually matching the UI specs
+        data = []
+        for job in queryset:
+            try:
+                business_name = job.client.client_profile.business_name
+            except Exception:
+                business_name = job.client.full_name or "Unknown Client"
+
+            # Format shift start and end times
+            start_str = job.shift_start.strftime("%I:%M %p").lstrip('0') if job.shift_start else ""
+            end_str = job.shift_end.strftime("%I:%M %p").lstrip('0') if job.shift_end else ""
+            shift_time = f"{start_str} - {end_str}" if start_str and end_str else ""
+
+            # Format shift duration
+            shift_dur = f"{job.shift_duration} hour{'s' if job.shift_duration != 1 else ''}"
+
+            # Format shift date (e.g. Aug 15, 2025)
+            shift_date_str = job.shift_date.strftime("%b %d, %Y") if job.shift_date else ""
+
+            # Format pay rate
+            pay_rate_formatted = f"${job.pay_rate}/{'hr' if job.pay_type == 'hourly' else 'flat'}"
+
+            # Determine button/action status shown in UI
+            if job.status == Job.COMPLETED:
+                action_status = "Completed"
+            elif job.status == Job.IN_PROGRESS:
+                action_status = "Assigned"
+            elif job.status == Job.OPEN:
+                action_status = "Invite"
+            elif job.status == Job.PENDING_APPROVAL:
+                action_status = "Pending Approval"
+            elif job.status == Job.DRAFT:
+                action_status = "Draft"
+            elif job.status == Job.CANCELLED:
+                action_status = "Cancelled"
+            else:
+                action_status = job.status.replace('_', ' ').capitalize()
+
+            prof_type_display = job.get_professional_type_display() if hasattr(job, 'get_professional_type_display') else job.professional_type
+            job_type_display = job.get_job_type_display() if hasattr(job, 'get_job_type_display') else job.job_type
+
+            data.append({
+                "id": job.id,
+                "title": job.title,
+                "business_name": business_name,
+                "professional_type": prof_type_display,
+                "distance": "2.3 miles away", # Mock distance matching design specs
+                "shift_time": shift_time,
+                "shift_duration": shift_dur,
+                "shift_date": shift_date_str,
+                "pay_rate": pay_rate_formatted,
+                "job_type": job_type_display,
+                "status": job.status,
+                "action_status": action_status,
+                "created_at": job.created_at.strftime("%Y-%m-%d %H:%M:%S") if job.created_at else None
+            })
+
+        return AutoPaginatedResponse(data, request=request)
+
+class JobTemplateListForClient(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedClient]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['App (Client) - Job Posting'])
+    def get(self, request):
+        """
+        **Get Job Templates - Approved Clients Only**\n
+
+        Retrieve a list of quick job templates for clients to easily prefill job post details. Supports searching by title or description.
+
+        ### Query Parameters:
+        - `search` (string, optional): Search keyword to match template title or description.
+        - `page` (integer, optional): Page number (default: 1).
+        - `page_size` (integer, optional): Number of items per page (default: 10).
+
+        ### Example Response:
+        ```json
+        {
+            "success": true,
+            "pagination": {
+                "count": 1,
+                "total_pages": 1,
+                "current_page": 1,
+                "next": null,
+                "previous": null
+            },
+            "results": [
+                {
+                    "id": 1,
+                    "title": "Regular Wednesday RN Shift",
+                    "professional_type": "RN",
+                    "shift_duration": "12-hour shift",
+                    "description": "Emergency Department",
+                    "last_used": "Last used 2 days ago",
+                    "pay_rate": "$45.00/hr",
+                    "location": "Main Campus",
+                    "city": "New York",
+                    "shift_start": "09:00 AM",
+                    "shift_end": "09:00 PM",
+                    "job_type": "Full Day"
+                }
+            ]
+        }
+        ```
+        """
+        queryset = JobTemplate.objects.all()
+
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
+
+        queryset = queryset.order_by('-created_at')
+
+        # Relativetime helper for last_used mock or using updated_at
+        from django.utils.timezone import now
+        from datetime import timedelta
+        def get_last_used_str(dt):
+            if not dt:
+                return "Last used 2 days ago"
+            delta = now() - dt
+            if delta < timedelta(minutes=60):
+                return "Last used just now"
+            elif delta < timedelta(hours=24):
+                h = int(delta.total_seconds() // 3600)
+                return f"Last used {h} hour{'s' if h != 1 else ''} ago"
+            else:
+                d = delta.days
+                if d == 1:
+                    return "Last used 1 day ago"
+                elif d < 7:
+                    return f"Last used {d} days ago"
+                else:
+                    w = d // 7
+                    return f"Last used {w} week{'s' if w != 1 else ''} ago"
+
+        data = []
+        for template in queryset:
+            prof_type = template.professional_type
+            if prof_type == 'CP':
+                prof_display = 'Phlebotomist'
+            elif prof_type == 'RN':
+                prof_display = 'RN'
+            elif prof_type == 'LPN':
+                prof_display = 'LPN'
+            else:
+                prof_display = template.get_professional_type_display() if hasattr(template, 'get_professional_type_display') else template.professional_type
+
+            shift_dur_str = f"{template.shift_duration}-hour shift"
+            pay_rate_formatted = f"${template.pay_rate}/{'hr' if template.pay_type == 'hourly' else 'flat'}"
+
+            data.append({
+                "id": template.id,
+                "title": template.title,
+                "professional_type": prof_display,
+                "shift_duration": shift_dur_str,
+                "description": template.description.strip(),
+                "last_used": get_last_used_str(template.updated_at),
+                "pay_rate": pay_rate_formatted,
+                "location": template.location,
+                "city": template.city,
+                "shift_start": template.shift_start.strftime("%I:%M %p") if template.shift_start else "",
+                "shift_end": template.shift_end.strftime("%I:%M %p") if template.shift_end else "",
+                "job_type": template.get_job_type_display() if hasattr(template, 'get_job_type_display') else template.job_type,
+            })
+
+        return AutoPaginatedResponse(data, request=request)
+
+class JobTemplateDetailView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedClient]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['App (Client) - Job Posting'])
+    def get(self, request, pk):
+        """
+        **Get Job Template Details**\n
+
+        Retrieve a single job template by its ID.
+
+        ### Path Parameters:
+        - `pk` (integer, required): The ID of the job template to retrieve.
+
+        ### Example Response:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "id": 1,
+                "title": "Regular Wednesday RN Shift",
+                "professional_type": "RN",
+                "shift_duration": "12-hour shift",
+                "description": "Emergency Department",
+                "last_used": "Last used 2 days ago",
+                "pay_rate": "$45.00/hr",
+                "location": "Main Campus",
+                "city": "New York",
+                "shift_start": "09:00 AM",
+                "shift_end": "09:00 PM",
+                "job_type": "Full Day"
+            }
+        }
+        ```
+        """
+        try:
+            job_template = JobTemplate.objects.get(pk=pk)
+        except JobTemplate.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Template not found",
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Relativetime helper for last_used
+        from django.utils.timezone import now
+        from datetime import timedelta
+        def get_last_used_str(dt):
+            if not dt:
+                return "Last used 2 days ago"
+            delta = now() - dt
+            if delta < timedelta(minutes=60):
+                return "Last used just now"
+            elif delta < timedelta(hours=24):
+                h = int(delta.total_seconds() // 3600)
+                return f"Last used {h} hour{'s' if h != 1 else ''} ago"
+            else:
+                d = delta.days
+                if d == 1:
+                    return "Last used 1 day ago"
+                elif d < 7:
+                    return f"Last used {d} days ago"
+                else:
+                    w = d // 7
+                    return f"Last used {w} week{'s' if w != 1 else ''} ago"
+
+        prof_type = job_template.professional_type
+        if prof_type == 'CP':
+            prof_display = 'Phlebotomist'
+        elif prof_type == 'RN':
+            prof_display = 'RN'
+        elif prof_type == 'LPN':
+            prof_display = 'LPN'
+        else:
+            prof_display = job_template.get_professional_type_display() if hasattr(job_template, 'get_professional_type_display') else job_template.professional_type
+
+        shift_dur_str = f"{job_template.shift_duration}-hour shift"
+        pay_rate_formatted = f"${job_template.pay_rate}/{'hr' if job_template.pay_type == 'hourly' else 'flat'}"
+
+        data = {
+            "id": job_template.id,
+            "title": job_template.title,
+            "professional_type": prof_display,
+            "shift_duration": shift_dur_str,
+            "description": job_template.description.strip(),
+            "last_used": get_last_used_str(job_template.updated_at),
+            "pay_rate": pay_rate_formatted,
+            "location": job_template.location,
+            "city": job_template.city,
+            "shift_start": job_template.shift_start.strftime("%I:%M %p") if job_template.shift_start else "",
+            "shift_end": job_template.shift_end.strftime("%I:%M %p") if job_template.shift_end else "",
+            "job_type": job_template.get_job_type_display() if hasattr(job_template, 'get_job_type_display') else job_template.job_type,
+        }
+
+        return Response({
+            "success": True,
+            "data": data
+        })
+
 

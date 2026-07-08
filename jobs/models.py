@@ -136,21 +136,6 @@ class JobAssignment(models.Model):
         return f"{self.job} - {self.phlebotomist} - {self.status}"
 
 class JobTemplate(models.Model):
-    DRAFT = 'draft'
-    PENDING_APPROVAL = 'pending_approval'
-    OPEN = 'open'
-    IN_PROGRESS = 'in_progress'
-    COMPLETED = 'completed'
-    CANCELLED = 'cancelled'
-    STATUS_CHOICES = [
-        (DRAFT, 'Draft'),
-        (PENDING_APPROVAL, 'Pending Approval'),
-        (OPEN, 'Open'),
-        (IN_PROGRESS, 'In Progress'),
-        (COMPLETED, 'Completed'),
-        (CANCELLED, 'Cancelled'),
-    ]
-    
     REGISTERED_NURSE = 'RN'
     LICENSED_PRACTICAL_NURSE = 'LPN'
     CERTIFIED_PHLEBOTOMIST = 'CP'
@@ -187,7 +172,6 @@ class JobTemplate(models.Model):
     pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
     professional_type = models.CharField(max_length=100, choices=PROFESSIONAL_TYPE_CHOICES, default=CERTIFIED_PHLEBOTOMIST)
     job_type = models.CharField(max_length=100, choices=JOB_TYPE_CHOICES, default=FULL_DAY)
-    status = models.CharField(max_length=255, choices=STATUS_CHOICES, default=PENDING_APPROVAL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

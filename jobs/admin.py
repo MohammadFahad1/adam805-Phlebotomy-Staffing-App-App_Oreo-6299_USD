@@ -119,13 +119,13 @@ class JobAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(JobTemplate)
 class JobTemplateAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'city', 'professional_type', 'pay_rate', 'pay_type', 'status')
-    list_filter = ('status', 'professional_type', 'pay_type')
+    list_display = ('id', 'title', 'city', 'professional_type', 'pay_rate', 'pay_type')
+    list_filter = ('professional_type', 'pay_type')
     search_fields = ('title', 'city', 'description')
     
     fieldsets = (
         ('Template Core', {
-            'fields': ('title', 'description', 'status')
+            'fields': ('title', 'description', )
         }),
         ('Default Requirements & Logistics', {
             'fields': ('location', 'city', 'shift_date', ('shift_start', 'shift_end'), 'shift_duration')
