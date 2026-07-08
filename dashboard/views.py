@@ -1341,4 +1341,132 @@ class JobManagementListView(NewAPIView):
         response = AutoPaginatedResponse(data, request=request)
         return response
 
+class JobManagementDetailView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
 
+    @swagger_auto_schema(tags=['Dashboard - Job Management Page'])
+    def get(self, request, job_id):
+        """
+        **Get Job Details - Admin Only**\n
+        Returns full details of a single job posting as shown on the Job Detail page.\n
+
+        ### Parameters:
+        - **job_id**: The formatted job ID (e.g. `JB-25-000001`).
+
+        ### Response Sections:
+        - **header**: Job title, job ID, posted date, job type, pay rate, shift start date.
+        - **job_description**: Full description text.
+        - **payment_and_timeline**: Pay rate, pay type, shift date, shift duration, work schedule.
+        - **client_information**: Business name, business type, no. of employees, member since.
+        - **location_and_work_type**: Full location, shift time window.
+        - **status**: Current job approval status.
+
+        ### Example Response:
+        ```json
+        {
+            "header": {
+                "title": "Blood Draw Station",
+                "job_id": "JB-25-000001",
+                "posted_on": "July 30, 2025",
+                "job_type": "full_day",
+                "pay_rate": "30.00",
+                "pay_type": "hourly",
+                "shift_date": "August 1, 2025"
+            },
+            "job_description": "A phlebotomist is responsible for...",
+            "payment_and_timeline": {
+                "pay_rate": "30.00",
+                "pay_type": "hourly",
+                "shift_date": "2025-08-15",
+                "shift_duration": "8 hrs",
+                "work_schedule": "10:00 AM to 12:00 PM"
+            },
+            "client_information": {
+                "client_id": 4,
+                "business_name": "Community Health Center",
+                "business_type": "healthcare",
+                "no_of_employees": 250,
+                "member_since": "2020"
+            },
+            "location_and_work_type": {
+                "location": "XYZ XYZ XYZ",
+                "work_schedule": "10:00 AM to 12:00 PM"
+            },
+            "status": "pending_approval"
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Full job detail returned.
+        - **404 Not Found**: Job does not exist.
+        """
+        from jobs.models import Job
+
+        job = get_object_or_404(
+            Job.objects.select_related('client__client_profile'),
+            id=job_id
+        )
+
+        # ── Client info ───────────────────────────────────────────────────────
+        try:
+            client_profile  = job.client.client_profile
+            business_name   = client_profile.business_name
+            business_type   = client_profile.business_type
+            no_of_employees = client_profile.no_of_employees
+            member_since    = job.client.created_at.strftime("%Y")
+        except Exception:
+            business_name   = job.client.full_name
+            business_type   = None
+            no_of_employees = None
+            member_since    = job.client.created_at.strftime("%Y")
+
+        # ── Work schedule string ──────────────────────────────────────────────
+        work_schedule = (
+            f"{job.shift_start.strftime('%I:%M %p').lstrip('0')} to "
+            f"{job.shift_end.strftime('%I:%M %p').lstrip('0')}"
+        )
+
+        # ── Shift duration display ────────────────────────────────────────────
+        shift_duration_display = (
+            f"{job.shift_duration} hr{'s' if job.shift_duration != 1 else ''}"
+            if job.shift_duration
+            else "N/A"
+        )
+
+        return Response(
+            {
+                "header": {
+                    "title":      job.title,
+                    "job_id":     f"#{job.id}",
+                    "posted_on":  job.created_at.strftime("%B %d, %Y"),
+                    "job_type":   job.job_type,
+                    "pay_rate":   str(job.pay_rate),
+                    "pay_type":   job.pay_type,
+                    "shift_date": job.shift_date.strftime("%B %d, %Y"),
+                },
+                "job_description": job.description,
+                "payment_and_timeline": {
+                    "pay_rate":        str(job.pay_rate),
+                    "pay_type":        job.pay_type,
+                    "shift_date":      str(job.shift_date),
+                    "shift_duration":  shift_duration_display,
+                    "work_schedule":   work_schedule,
+                },
+                "client_information": {
+                    "client_id":      job.client.id,
+                    "business_name":  business_name,
+                    "business_type":  business_type,
+                    "no_of_employees": no_of_employees,
+                    "member_since":   member_since,
+                },
+                "location_and_work_type": {
+                    "location":      job.location,
+                    "city":          job.city,
+                    "work_schedule": work_schedule,
+                },
+                "status": job.status,
+            },
+            status=status.HTTP_200_OK
+        )
