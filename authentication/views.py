@@ -1272,3 +1272,151 @@ class PhlebotomistProfileView(NewAPIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+# Client Profile Get View
+class ClientProfileView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Profile Management'])
+    def get(self, request):
+        """
+        **Get Client Profile**\n
+        Returns the full profile of the authenticated client including
+        business information, documents, activity stats, and ratings & reviews.\n
+
+        ### Response Sections:
+        - **header**: Name, business type, profile picture, rating summary, gender.
+        - **stats**: Jobs posted, jobs completed, active jobs.
+        - **business_information**: Full business address, contact details, pay rate, etc.
+        - **documents**: Uploaded business documents with approval status.
+        - **ratings_and_reviews**: Overall rating, total reviews, and recent review list.
+
+        ### Responses:
+        - **200 OK**: Profile returned.
+        - **403 Forbidden**: User is not a client.
+        - **404 Not Found**: Profile not found.
+        """
+        from django.utils.timezone import now
+        from datetime import timedelta
+        from django.db.models import Avg, Count
+        from jobs.models import Job
+        from communication.models import Review
+
+        user = request.user
+
+        if user.role != 'client':
+            return Response(
+                {"detail": "Only clients can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            profile = user.client_profile
+        except Exception:
+            return Response(
+                {"detail": "Client profile not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # ── Relative time helper ──────────────────────────────────────────────
+        def time_ago(dt):
+            delta = now() - dt
+            if delta < timedelta(minutes=1):
+                return "just now"
+            elif delta < timedelta(hours=1):
+                m = int(delta.total_seconds() / 60)
+                return f"{m} minute{'s' if m != 1 else ''} ago"
+            elif delta < timedelta(days=1):
+                h = int(delta.total_seconds() / 3600)
+                return f"{h} hour{'s' if h != 1 else ''} ago"
+            elif delta < timedelta(days=30):
+                return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+            elif delta < timedelta(days=365):
+                mo = int(delta.days / 30)
+                return f"{mo} month{'s' if mo != 1 else ''} ago"
+            else:
+                yr = int(delta.days / 365)
+                return f"{yr} year{'s' if yr != 1 else ''} ago"
+
+        # ── Stats ─────────────────────────────────────────────────────────────
+        all_jobs       = user.jobs.all()
+        total_posted   = all_jobs.count()
+        total_completed = all_jobs.filter(status='completed').count()
+        total_active   = all_jobs.filter(status__in=['open', 'in_progress']).count()
+
+        # ── Ratings & Reviews ─────────────────────────────────────────────────
+        reviews_qs = Review.objects.filter(
+            reviewed=user
+        ).select_related('reviewer').order_by('-created_at')
+
+        rating_data    = reviews_qs.aggregate(avg=Avg('rating'), total=Count('id'))
+        overall_rating = round(rating_data['avg'] or 0, 1)
+        total_reviews  = rating_data['total']
+
+        recent_reviews = [
+            {
+                "reviewer_name":    r.reviewer.full_name,
+                "reviewer_picture": request.build_absolute_uri(r.reviewer.profile_picture.url) if r.reviewer.profile_picture else None,
+                "rating":           r.rating,
+                "comment":          r.comment,
+                "reviewed_ago":     time_ago(r.created_at),
+            }
+            for r in reviews_qs[:10]
+        ]
+
+        # ── Documents ─────────────────────────────────────────────────────────
+        documents = [
+            {
+                "id":            doc.id,
+                "document_name": doc.document_name,
+                "approved":      doc.approved,
+                "document_file": request.build_absolute_uri(doc.document_file.url),
+                "uploaded_on":   doc.created_at.strftime("%b %d, %Y"),
+            }
+            for doc in profile.documents.all()
+        ]
+
+        return Response(
+            {
+                "header": {
+                    "full_name":       user.full_name,
+                    "business_type":   profile.business_type,
+                    "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                    "overall_rating":  overall_rating,
+                    "total_reviews":   total_reviews,
+                    "gender":          user.gender,
+                    "member_since":    user.created_at.strftime("%B %Y"),
+                },
+                "stats": {
+                    "jobs_posted":    total_posted,
+                    "jobs_completed": total_completed,
+                    "active_jobs":    total_active,
+                },
+                "business_information": {
+                    "business_name":           profile.business_name,
+                    "business_type":           profile.business_type,
+                    "business_address_street": profile.business_address_street,
+                    "business_address_city":   profile.business_address_city,
+                    "business_address_state":  profile.business_address_state,
+                    "business_address_zip":    profile.business_address_zip,
+                    "contact_person_name":     profile.contact_person_name,
+                    "business_phone":          profile.business_phone,
+                    "business_license_number": profile.business_license_number,
+                    "business_description":    profile.business_description,
+                    "hourly_pay_rate":         str(profile.hourly_pay_rate),
+                    "preferred_job_type":      profile.preferred_job_type,
+                    "work_preference":         profile.work_preference,
+                    "no_of_employees":         profile.no_of_employees,
+                },
+                "documents": documents,
+                "ratings_and_reviews": {
+                    "overall_rating": overall_rating,
+                    "total_reviews":  total_reviews,
+                    "reviews":        recent_reviews,
+                },
+            },
+            status=status.HTTP_200_OK
+        )
