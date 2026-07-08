@@ -753,7 +753,6 @@ class UserManagementDetailView(NewAPIView):
             "document_verification": documents,
         }, status=status.HTTP_200_OK)
 
-
 class UserManagementEditView(NewAPIView):
     serializer_class = serializers.PhlebotomistProfileEditSerializer
     permission_classes = [IsAdminUser]
@@ -1206,4 +1205,140 @@ class UserManagementEditView(NewAPIView):
                             raise ValueError(f"Invalid slot data: {e}")
 
         return Response({"message": "Profile updated successfully."}, status=status.HTTP_200_OK)
+
+
+# Dashboard Job Management Views
+class JobManagementListView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Dashboard - Job Management Page'])
+    def get(self, request):
+        """
+        **Get All Jobs - Admin Only**\n
+        Returns a paginated list of all job postings with support for search, status, and date filters.
+        Matches the Job Management page on the dashboard.\n
+
+        ### Query Parameters:
+        - `search` (string): Filter by job title or job ID (case-insensitive).
+        - `status` (string): Filter by job status. Choices: `draft`, `pending_approval`, `open`, `in_progress`, `completed`, `cancelled`.
+        - `date` (string): Filter by shift date in `YYYY-MM-DD` format.
+
+        ### Example Response:
+        ```json
+        {
+            "success": true,
+            "pagination": {
+                "count": 2,
+                "total_pages": 1,
+                "current_page": 1,
+                "next": null,
+                "previous": null
+            },
+            "results": [
+                {
+                    "id": "JB-26-000002",
+                    "title": "Jr. Backend Dev at JVAI",
+                    "client_business_name": "Join Venture AI",
+                    "city": "Dhaka",
+                    "pay_rate": "10.00",
+                    "pay_type": "flat_rate",
+                    "status": "pending_approval",
+                    "posted_ago": "6 hours ago",
+                    "shift_date": "2026-07-09"
+                },
+                {
+                    "id": "JB-26-000001",
+                    "title": "Trainee Backend Dev at JVAI",
+                    "client_business_name": "Join Venture AI",
+                    "city": "Dhaka",
+                    "pay_rate": "10.00",
+                    "pay_type": "hourly",
+                    "status": "pending_approval",
+                    "posted_ago": "6 hours ago",
+                    "shift_date": "2026-07-08"
+                }
+            ]
+        }
+        ```
+
+        ### Responses:
+        - **200 OK**: Paginated list of jobs.
+        - **400 Bad Request**: Invalid date format.
+        """
+        from django.utils.timezone import now
+        from datetime import timedelta
+        from jobs.models import Job
+
+        # ── Filters ───────────────────────────────────────────────────────────
+        search     = request.query_params.get('search', '').strip()
+        status_filter = request.query_params.get('status', '').strip()
+        date_filter   = request.query_params.get('date', '').strip()
+
+        jobs = Job.objects.select_related('client__client_profile').order_by('-created_at')
+
+        if search:
+            jobs = jobs.filter(
+                Q(title__icontains=search) | Q(id__icontains=search)
+            )
+
+        if status_filter:
+            jobs = jobs.filter(status=status_filter)
+
+        if date_filter:
+            import datetime
+            try:
+                parsed_date = datetime.date.fromisoformat(date_filter)
+                jobs = jobs.filter(shift_date=parsed_date)
+            except ValueError:
+                return Response(
+                    {"date": ["Invalid date format. Use YYYY-MM-DD."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # ── Relative time helper ──────────────────────────────────────────────
+        def posted_ago(created_at):
+            delta = now() - created_at
+            if delta < timedelta(minutes=1):
+                return "just now"
+            elif delta < timedelta(hours=1):
+                m = int(delta.total_seconds() / 60)
+                return f"{m} minute{'s' if m != 1 else ''} ago"
+            elif delta < timedelta(days=1):
+                h = int(delta.total_seconds() / 3600)
+                return f"{h} hour{'s' if h != 1 else ''} ago"
+            elif delta < timedelta(days=30):
+                return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+            elif delta < timedelta(days=365):
+                mo = int(delta.days / 30)
+                return f"{mo} month{'s' if mo != 1 else ''} ago"
+            else:
+                yr = int(delta.days / 365)
+                return f"{yr} year{'s' if yr != 1 else ''} ago"
+
+        def get_business_name(job):
+            try:
+                return job.client.client_profile.business_name
+            except Exception:
+                return job.client.full_name
+
+        data = [
+            {
+                "id":                   job.id,
+                "title":                job.title,
+                "client_business_name": get_business_name(job),
+                "city":                 job.city or job.location,
+                "pay_rate":             str(job.pay_rate),
+                "pay_type":             job.pay_type,
+                "status":               job.status,
+                "posted_ago":           posted_ago(job.created_at),
+                "shift_date":           str(job.shift_date),
+            }
+            for job in jobs
+        ]
+
+        response = AutoPaginatedResponse(data, request=request)
+        return response
+
 
