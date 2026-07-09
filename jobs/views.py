@@ -950,6 +950,57 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
         """
         **Get Job Details for Phlebotomist**\n
         Retrieve a detailed view of a job for a phlebotomist.
+
+        Path Parameters:
+        - `job_id` (string, required): The ID of the job to retrieve details for.
+
+        Example Response:
+        ```json
+        {
+            "success": true,
+            "id": "job_id_here",
+            "title": "Phlebotomist Needed",
+            "description": "Looking for a qualified phlebotomist for a mobile blood draw at 123 Main St, Anytown, USA.",
+            "status": "Approved",
+            "client_name": "Acme Corp",
+            "client_address": "123 Main St, Anytown, CA 90210",
+            "client_business_name": "(Acme Corp)",
+            "client_phone": "(555) 123-4567",
+            "shift_date": "July 15, 2025",
+            "shift_time": "9:00 AM - 1:00 PM (4 hours)",
+            "formatted_job_id": "#job_id_here",
+            "hourly_rate": "$25.00/hr",
+            "total_hours": "4.0 hrs",
+            "subtotal": "$100.00",
+            "service_fee": "-$5.00",
+            "tax_withholding": "-$15.00",
+            "total_earnings": "$80.00",
+            "client_info": {
+                "name": "Acme Corp",
+                "role": "Client",
+                "address": "123 Main St, Anytown, CA 90210",
+                "business_name": "(Acme Corp)",
+                "phone": "(555) 123-4567"
+            },
+            "job_details": {
+                "title": "Phlebotomist Needed",
+                "shift_date": "July 15, 2025",
+                "shift_time": "9:00 AM - 1:00 PM (4 hours)",
+                "formatted_job_id": "#job_id_here",
+                "description": "Looking for a qualified phlebotomist for a mobile blood draw at 123 Main St, Anytown, USA."
+            },
+            "payment_breakdown": {
+                "hourly_rate": "$25.00/hr",
+                "total_hours": "4.0 hrs",
+                "subtotal": "$100.00",
+                "service_fee": "-$5.00",
+                "tax_withholding": "-$15.00",
+                "total_earnings": "$80.00"
+            }
+        }
+        Error Responses:
+        - 404 Not Found: If the job with the specified ID does not exist.
+        - 403 Forbidden: If the user is not authenticated or not an approved phlebotomist.
         """
         from jobs.models import Job
         from django.shortcuts import get_object_or_404
@@ -979,12 +1030,20 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
         tax_withholding = subtotal * 0.15
         total_earnings = subtotal - service_fee - tax_withholding
 
+        # Check if the phlebotomist already applied
+        from jobs.models import JobApplication
+        app = JobApplication.objects.filter(job=job, phlebotomist=request.user).first()
+        applied = app is not None
+        application_status = app.status if applied else None
+
         data = {
             "success": True,
             "id": job.id,
             "title": job.title,
             "description": job.description,
             "status": job.status,
+            "applied": applied,
+            "application_status": application_status,
             "client_name": client_name,
             "client_address": client_address,
             "client_business_name": client_business_name,
@@ -1021,5 +1080,4 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
                 "total_earnings": f"${total_earnings:.2f}"
             }
         }
-
         return Response(data, status=status.HTTP_200_OK)

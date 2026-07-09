@@ -846,6 +846,24 @@ class PhlebotomistJobDetailsAPIViewTests(APITestCase):
         self.assertEqual(data['service_fee'], "-$5.00")
         self.assertEqual(data['tax_withholding'], "-$15.00")
         self.assertEqual(data['total_earnings'], "$80.00")
+        self.assertEqual(data['applied'], False)
+        self.assertEqual(data['application_status'], None)
+
+    def test_get_job_details_applied(self):
+        from jobs.models import JobApplication
+        JobApplication.objects.create(
+            job=self.job,
+            phlebotomist=self.phleb_user,
+            status=JobApplication.PENDING
+        )
+
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertEqual(data['applied'], True)
+        self.assertEqual(data['application_status'], 'pending')
 
 
 
