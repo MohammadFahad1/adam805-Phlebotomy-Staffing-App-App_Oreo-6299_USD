@@ -1179,11 +1179,9 @@ class PhlebotomistAcceptJobsAPIView(NewAPIView):
         request_body=EmptySerializer,
         tags=['App (Phlebotomist) - Home Section']
     )
-    def patch(self, request):
+    def patch(self, request, job_id):
         from jobs.models import Job, JobApplication, JobAssignment
         
-        # Get job id from request parameters
-        job_id = request.data.get('job_id')
         if not job_id:
             return Response({
                 "success": False,
