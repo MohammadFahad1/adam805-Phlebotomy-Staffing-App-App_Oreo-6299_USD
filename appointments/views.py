@@ -219,10 +219,11 @@ class CreateAppointmentView(NewAPIView):
         # 9. Instantiate serializer and dynamically override optional/blank fields
         serializer = self.get_serializer(data=data)
         
-        # Override prescription based on incoming data type (File vs String/None)
-        prescription_data = data.get('prescription')
-        if prescription_data and not isinstance(prescription_data, str) and hasattr(prescription_data, 'read'):
+        prescription_file = request.FILES.get('prescription')
+
+        if prescription_file is not None:
             serializer.fields['prescription'] = drf_serializers.FileField(required=False, allow_null=True)
+            data['prescription'] = prescription_file  # ensure it's the real object, not a stray string
         else:
             serializer.fields['prescription'] = drf_serializers.CharField(required=False, allow_null=True, allow_blank=True)
         
