@@ -1170,6 +1170,58 @@ class PhlebotomistPendingJobListAPIView(NewAPIView):
         }
         return Response(data, status=status.HTTP_200_OK)
 
+class PhlebotomistAcceptJobsAPIView(NewAPIView):
+    permission_classes = [IsApprovedPhlebotomist]
+    serializer_class = EmptySerializer
+    http_method_names = ['patch']
 
+    @swagger_auto_schema(
+        request_body=EmptySerializer,
+        tags=['App (Phlebotomist) - Home Section']
+    )
+    def patch(self, request):
+        from jobs.models import Job, JobApplication, JobAssignment
+        
+        # Get job id from request parameters
+        job_id = request.data.get('job_id')
+        if not job_id:
+            return Response({
+                "success": False,
+                "message": "Job ID is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get job assignment for the authenticated phlebotomist with PENDING status first
+        try:
+            assignment = JobAssignment.objects.get(
+                phlebotomist=request.user,
+                job_id=job_id,
+                status=JobAssignment.PENDING
+            )
+        except JobAssignment.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Job assignment not found or already accepted."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        job = assignment.job
+        if job.status in [Job.DRAFT, Job.PENDING_APPROVAL, Job.IN_PROGRESS, Job.COMPLETED, Job.CANCELLED]:
+            return Response({
+                "success": False,
+                "message": "Job cannot be accepted as it is not Open or Approved."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Accept the job assignment
+        assignment.signed_by_phlebotomist = True
+        assignment.status = JobAssignment.ACTIVE
+        assignment.save()
+
+        job.status = Job.IN_PROGRESS
+        job.save()
+        
+        data = {
+            "success": True,
+            "message": "Job accepted successfully."
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 
