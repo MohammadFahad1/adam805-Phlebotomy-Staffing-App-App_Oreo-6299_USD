@@ -549,9 +549,69 @@ class PhlebotomistAvailableJobsAPIView(NewAPIView):
     @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
     def get(self, request):
         """
-        **Get Available Jobs for Phlebotomist**\n
+        **Get Available Jobs for Phlebotomist - Phlebotomist**\n
         Retrieve a list of open/approved jobs that the phlebotomist can apply to.
+
+        ### Parameters:
+        - `filter` (string, optional): Filter by tab. Possible values: 'all', 'near_me', 'night_shift', 'today'.
+        - `search` (string, optional): Search query.
+
+        ### Example:
+        ```http
+        GET /api/jobs/phlebotomist/available/?filter=near_me&search=New+York
+        {
+        "success": true,
+        "pagination": {
+            "count": 4,
+            "total_pages": 1,
+            "current_page": 1,
+            "next": null,
+            "previous": null
+        },
+        "results": [
+                {
+                    "id": "JB-26-000006",
+                    "title": "ICU Nurse - Night Shift",
+                    "business_name": "Metro General Hospital",
+                    "professional_type": "Phlebotomist",
+                    "distance": "2.3 miles away",
+                    "shift_time": "11:00 PM - 7:00 AM",
+                    "shift_duration": "3 hours",
+                    "shift_date": "Aug 15, 2025",
+                    "pay_rate": "$30.00/hr",
+                    "location": "Metro General Hospital",
+                    "city": "New York",
+                    "job_type": "Part Time",
+                    "description": "Overnight ICU nurse staffing.",
+                    "status": "open",
+                    "applied": false,
+                    "action_status": "Apply",
+                    "created_at": "2026-07-09 11:34:19"
+                },
+                {
+                    "id": "JB-26-000005",
+                    "title": "ICU Nurse",
+                    "business_name": "Metro General Hospital",
+                    "professional_type": "Phlebotomist",
+                    "distance": "2.3 miles away",
+                    "shift_time": "11:00 PM - 7:00 AM",
+                    "shift_duration": "3 hours",
+                    "shift_date": "Aug 15, 2025",
+                    "pay_rate": "$30.00/hr",
+                    "location": "Metro General Hospital",
+                    "city": "New York",
+                    "job_type": "Full Day",
+                    "description": "Critical care nursing support.",
+                    "status": "open",
+                    "applied": true,
+                    "action_status": "Applied",
+                    "created_at": "2026-07-09 11:34:19"
+                }
+            ]
+        }
+        ```
         """
+        # pyrefly: ignore [missing-import]
         from django.db.models import Q
         from jobs.models import Job, JobAssignment, JobApplication
 
@@ -674,8 +734,8 @@ class PhlebotomistAvailableJobsAPIView(NewAPIView):
             })
 
         response = AutoPaginatedResponse(data, request=request)
-        if isinstance(response.data, dict) and 'results' in response.data:
-            response.data['data'] = response.data['results']
+        # if isinstance(response.data, dict) and 'results' in response.data:
+        #     response.data['data'] = response.data['results']
         return response
 
 class PhlebotomistJobApplyView(NewAPIView):
