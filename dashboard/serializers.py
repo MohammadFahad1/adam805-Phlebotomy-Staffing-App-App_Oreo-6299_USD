@@ -194,3 +194,94 @@ class ClientProfileEditSerializer(serializers.Serializer):
         required=False,
         help_text="List of availability slots. Replaces all existing slots.",
     )
+
+
+class ReportListSerializer(serializers.ModelSerializer):
+    title = serializers.SerializerMethodField()
+    reported_by = serializers.SerializerMethodField()
+    case_id = serializers.SerializerMethodField()
+    time_elapsed = serializers.SerializerMethodField()
+    priority = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        from communication.models import Report
+        model = Report
+        fields = [
+            'id',
+            'title',
+            'reported_by',
+            'case_id',
+            'time_elapsed',
+            'priority',
+            'status',
+            'status_display',
+            'reason',
+            'additional_details',
+            'created_at'
+        ]
+
+    def get_title(self, obj):
+        mapping = {
+            'inappropriate_language': 'Inappropriate Message',
+            'harassment': 'Harassment Report',
+            'spam': 'Spam Report',
+            'fake_profile': 'Fake Profile Report',
+            'other': 'Payment Issue'
+        }
+        return mapping.get(obj.reason, 'Payment Issue')
+
+    def get_reported_by(self, obj):
+        if obj.reporter:
+            return obj.reporter.full_name or obj.reporter.email
+        return 'Unknown'
+
+    def get_case_id(self, obj):
+        prefix_mapping = {
+            'inappropriate_language': 'IM',
+            'harassment': 'HR',
+        }
+        prefix = prefix_mapping.get(obj.reason, 'DS')
+        year = obj.created_at.year if obj.created_at else 2024
+        obj_id = obj.id or 1
+        return f"#{prefix}-{year}-{obj_id:03d}"
+
+    def get_time_elapsed(self, obj):
+        if not obj.created_at:
+            return "Just now"
+        from django.utils import timezone
+        now = timezone.now()
+        diff = now - obj.created_at
+        if diff.days > 0:
+            if diff.days == 1:
+                return "1 day ago"
+            return f"{diff.days} days ago"
+        hours = diff.seconds // 3600
+        if hours > 0:
+            if hours == 1:
+                return "1 hour ago"
+            return f"{hours} hours ago"
+        minutes = (diff.seconds % 3600) // 60
+        if minutes > 0:
+            if minutes == 1:
+                return "1 minute ago"
+            return f"{minutes} minutes ago"
+        return "Just now"
+
+    def get_priority(self, obj):
+        priority_mapping = {
+            'harassment': 'High',
+            'inappropriate_language': 'Medium',
+            'spam': 'Low',
+            'fake_profile': 'Medium',
+            'other': 'High'
+        }
+        return priority_mapping.get(obj.reason, 'High')
+
+    def get_status_display(self, obj):
+        if obj.status == 'resolved':
+            return 'Solved'
+        elif obj.status == 'reviewed':
+            return 'Under Review'
+        else:
+            return 'Pending'

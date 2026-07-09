@@ -1621,4 +1621,115 @@ class DisputeManagementStatisticsAPIView(NewAPIView):
         }
         return Response(data, status=status.HTTP_200_OK)
 
+class DisputeManagementListAPIView(NewAPIView):
+    serializer_class = serializers.ReportListSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Dashboard - Dispute Management'])
+    def get(self, request):
+        """
+        **Dispute Management List - Admin Only**\n
+        Retrieve dispute management list including pending issues, under review, and resolved today.
+
+        **Query Parameters:**
+        - **status**: Filter by status (pending, reviewed, resolved)
+        - **priority**: Filter by priority (high, medium, low)
+        - **search**: Search by title, case ID, reported by, reported user
+        - **page**: Page number
+        - **limit**: Number of items per page
+
+        **Response Example:**
+        ```json
+        {
+            "success": true,
+            "pagination": {
+                "count": 0,
+                "total_pages": 1,
+                "current_page": 1,
+                "next": null,
+                "previous": null
+            },
+            "results": [
+                {
+                    "id": 3,
+                    "title": "Harassment Report",
+                    "reported_by": "FA Kabita",
+                    "priority": "High",
+                    "status_display": "Pending",
+                    "case_id": "#HR-2025-001",
+                    "created_at": "2025-09-15T10:00:00Z",
+                    "reported_user": "John Doe"
+                },
+                {
+                    "id": 2,
+                    "title": "Inappropriate Message",
+                    "reported_by": "FA Kabita",
+                    "priority": "Medium",
+                    "status_display": "Solved",
+                    "case_id": "#IM-2025-002",
+                    "created_at": "2025-09-14T10:00:00Z",
+                    "reported_user": "John Doe"
+                },
+                {
+                    "id": 1,
+                    "title": "Payment Issue",
+                    "reported_by": "FA Kabita",
+                    "priority": "High",
+                    "status_display": "Solved",
+                    "case_id": "#PI-2025-003",
+                    "created_at": "2025-09-13T10:00:00Z",
+                    "reported_user": "John Doe"
+                }
+            ]
+        }
+        ```
+        """
+        from communication.models import Report
+
+        reports = Report.objects.select_related('reporter', 'reported_user').order_by('-created_at')
+
+        q_params = request.query_params.copy()
+
+        # Normalize status values
+        if 'status' in q_params:
+            val = q_params['status'].lower()
+            if val == 'solved':
+                q_params['status'] = 'resolved'
+            elif val in ['under review', 'under_review']:
+                q_params['status'] = 'reviewed'
+
+        # Normalize issue type filter
+        issue_val = q_params.get('issue') or q_params.get('issue_type')
+        if issue_val:
+            val = issue_val.lower()
+            mapping = {
+                'payment issue': 'other',
+                'payment_issue': 'other',
+                'payment': 'other',
+                'inappropriate message': 'inappropriate_language',
+                'inappropriate_message': 'inappropriate_language',
+                'inappropriate_language': 'inappropriate_language',
+                'harassment report': 'harassment',
+                'harassment_report': 'harassment',
+                'harassment': 'harassment',
+                'spam report': 'spam',
+                'spam_report': 'spam',
+                'spam': 'spam',
+                'fake profile report': 'fake_profile',
+                'fake_profile_report': 'fake_profile',
+                'fake_profile': 'fake_profile',
+            }
+            q_params['reason'] = mapping.get(val, val)
+            q_params.pop('issue', None)
+            q_params.pop('issue_type', None)
+
+        original_query_params = request.query_params
+        request._request.GET = q_params
+
+        try:
+            serialized_data = self.get_serializer(reports, many=True).data
+            return AutoPaginatedResponse(serialized_data, request=request)
+        finally:
+            request._request.GET = original_query_params
 

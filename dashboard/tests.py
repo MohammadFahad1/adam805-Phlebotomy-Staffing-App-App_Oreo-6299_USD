@@ -250,3 +250,113 @@ class DisputeManagementStatisticsAPITests(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+
+class DisputeManagementListAPITests(APITestCase):
+
+    def setUp(self):
+        # Create users
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="clientpassword",
+            full_name="FA Kabita",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.phlebotomist_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+
+        from communication.models import Report
+        # Create 3 reports corresponding to the screenshot
+        self.r1 = Report.objects.create(
+            reporter=self.client_user,
+            reported_user=self.phlebotomist_user,
+            reason=Report.OTHER,
+            status=Report.RESOLVED
+        )
+        self.r2 = Report.objects.create(
+            reporter=self.client_user,
+            reported_user=self.phlebotomist_user,
+            reason=Report.INAPPROPRIATE_LANGUAGE,
+            status=Report.RESOLVED
+        )
+        self.r3 = Report.objects.create(
+            reporter=self.client_user,
+            reported_user=self.phlebotomist_user,
+            reason=Report.HARASSMENT,
+            status=Report.PENDING
+        )
+
+    def test_list_all_disputes(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify success structure and paginated format
+        self.assertTrue(response.data['success'])
+        results = response.data['results']
+        self.assertEqual(len(results), 3)
+
+        # Check detail matching figma
+        first_item = results[0]  # ordered by -created_at, so r3 is first
+        self.assertEqual(first_item['title'], 'Harassment Report')
+        self.assertEqual(first_item['reported_by'], 'FA Kabita')
+        self.assertEqual(first_item['priority'], 'High')
+        self.assertEqual(first_item['status_display'], 'Pending')
+        self.assertEqual(first_item['case_id'], f"#HR-{self.r3.created_at.year}-{self.r3.id:03d}")
+
+    def test_list_filtering_by_status(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-list')
+        
+        # Filter status=solved (should return r1 and r2, resolved_today/solved maps to status='resolved')
+        response = self.client.get(url, {'status': 'solved'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pagination']['count'], 2)
+
+        # Filter status=pending (should return r3)
+        response = self.client.get(url, {'status': 'pending'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pagination']['count'], 1)
+        self.assertEqual(response.data['results'][0]['title'], 'Harassment Report')
+
+    def test_list_filtering_by_issue_type(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-list')
+
+        # Filter by issue='Payment Issue' (maps to reason='other', i.e. r1)
+        response = self.client.get(url, {'issue': 'Payment Issue'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['pagination']['count'], 1)
+        self.assertEqual(response.data['results'][0]['title'], 'Payment Issue')
+
+    def test_list_permissions_denied(self):
+        url = reverse('dispute-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.force_authenticate(user=self.phlebotomist_user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
