@@ -1744,6 +1744,41 @@ class DisputeManagementDetailAPIView(NewAPIView):
         """
         **Dispute Management Detail - Admin Only**\n
         Retrieve detailed information of a dispute/report.
+
+        **Response Example:**
+        ```json
+        {
+            "id": 3,
+            "case_id": "#HR-2025-001",
+            "report_details": {
+                "title": "Harassment Report",
+                "reported_user": "John Doe",
+                "status": "Pending",
+                "status_id": "pending"
+            },
+            "complaint_information": {
+                "type": "Inappropriate Content",
+                "reported_by": "FA Kabita",
+                "platform": "Chat"
+            },
+            "report_content": {
+                "date_of_incident": "2025-09-15T10:00:00.000Z",
+                "summary": "User reported receiving inappropriate messages...",
+                "evidence": []
+            },
+            "action_history": [
+                {
+                    "action": "Report Created",
+                    "timestamp": "2025-09-15T10:00:00.000Z",
+                    "details": "User reported receiving inappropriate messages..."
+                }
+            ],
+            "admin_decision": {
+                "admin_notes": "",
+                "recommended_action": "Suspend User Account"
+            }
+        }
+        ```
         """
         from communication.models import Report
         report = get_object_or_404(Report, id=report_id)
@@ -1755,6 +1790,50 @@ class DisputeManagementDetailAPIView(NewAPIView):
         """
         **Update Dispute Management Status/Decision - Admin Only**\n
         Update dispute status or decision notes.
+
+        **Request Body:**
+        ```json
+        {
+            "status": "solved",
+            "admin_notes": "Case resolved and action taken.",
+            "resolved_at": "2026-07-09T10:32:13.840Z"
+        }
+        ```
+
+        **Response Example:**
+        ```json
+        {
+            "id": 3,
+            "case_id": "#HR-2025-001",
+            "report_details": {
+                "title": "Harassment Report",
+                "reported_user": "John Doe",
+                "status": "Pending",
+                "status_id": "pending"
+            },
+            "complaint_information": {
+                "type": "Inappropriate Content",
+                "reported_by": "FA Kabita",
+                "platform": "Chat"
+            },
+            "report_content": {
+                "date_of_incident": "2025-09-15T10:00:00.000Z",
+                "summary": "User reported receiving inappropriate messages...",
+                "evidence": []
+            },
+            "action_history": [
+                {
+                    "action": "Report Created",
+                    "timestamp": "2025-09-15T10:00:00.000Z",
+                    "details": "User reported receiving inappropriate messages..."
+                }
+            ],
+            "admin_decision": {
+                "admin_notes": "",
+                "recommended_action": "Suspend User Account"
+            }
+        }
+        ```
         """
         from communication.models import Report
         from django.utils import timezone
