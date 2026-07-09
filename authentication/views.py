@@ -630,6 +630,20 @@ class UserLoginView(NewAPIView):
         return Response({"success": False, "message": "Invalid input data."}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ProfileAPIView(NewAPIView):
+    serializer_class = serializers.EmptySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Authentication'])
+    def get(self, request):
+        """
+        **Profile Endpoint - Private**\n
+        Retrieve the profile details of the authenticated user.
+        """
+        return Response({"success": True, "message": "Profile details retrieved successfully.", "data": serializers.UserSerializer(request.user, context={'request': request}).data}, status=status.HTTP_200_OK)
+
+
 # Phlebotomist Profile Update View
 class PhlebotomistProfileUpdateView(NewAPIView):
     serializer_class = serializers.EmptySerializer

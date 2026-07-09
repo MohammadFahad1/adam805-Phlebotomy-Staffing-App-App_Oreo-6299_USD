@@ -11,6 +11,7 @@ urlpatterns = [
     path('account/delete/', views.AccountDeleteAPIView.as_view(), name='account-delete'),
     
     # Profile Update Endpoints
+    path('profile/me/', views.ProfileAPIView.as_view(), name='my-profile'),
     path('profile/phlebotomist/update/', views.PhlebotomistProfileUpdateView.as_view(), name='phlebotomist-profile-update'),
     path('profile/client/update/', views.ClientProfileUpdateView.as_view(), name='client-profile-update'),
     path('profile/phlebotomist/', views.PhlebotomistProfileView.as_view(), name='phlebotomist-profile'),
