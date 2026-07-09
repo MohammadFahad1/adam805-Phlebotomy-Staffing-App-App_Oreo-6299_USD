@@ -1053,6 +1053,86 @@ class PhlebotomistAcceptJobsAPIViewTests(APITestCase):
         self.assertTrue(self.assignment.signed_by_phlebotomist)
 
 
+class PhlebotomistRejectJobsAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment
+        from authentication.models import Phlebotomist
+        import datetime
+
+        self.client_user = User.objects.create_user(
+            email="client_reject@example.com",
+            password="SecurePassword123!",
+            full_name="Client Reject",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        self.phleb_user = User.objects.create_user(
+            email="phleb_reject@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Reject",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-666666",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood draw Station",
+            description="Regular blood draw service.",
+            location="123 Main Street, New York",
+            city="New York",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(23, 0),
+            shift_end=datetime.time(7, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        self.assignment = JobAssignment.objects.create(
+            job=self.job,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status=JobAssignment.PENDING
+        )
+
+        self.reject_url = reverse('phlebotomist-reject-job', kwargs={'job_id': self.job.id})
+
+    def test_reject_job_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.patch(self.reject_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['message'], "Job assignment rejected successfully.")
+
+        # Verify job and assignment status
+        from jobs.models import JobAssignment
+        self.assertFalse(JobAssignment.objects.filter(id=self.assignment.id).exists())
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, Job.APPROVED)
+
+
 class UserRatingsReviewsAPIViewTests(APITestCase):
 
     def setUp(self):

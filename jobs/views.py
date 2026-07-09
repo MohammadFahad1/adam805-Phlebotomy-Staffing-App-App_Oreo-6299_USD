@@ -1180,6 +1180,24 @@ class PhlebotomistAcceptJobsAPIView(NewAPIView):
         tags=['App (Phlebotomist) - Home Section']
     )
     def patch(self, request, job_id):
+        """
+        **Accept Job**
+
+        **Request Example**:
+        ```json
+        {
+            "job_id": 1
+        }
+        ```
+
+        **Response Example**:
+        ```json
+        {
+            "success": false,
+            "message": "You can't accept a job that is already accepted by another phlebotomist."
+        }
+        ```
+        """
         from jobs.models import Job, JobApplication, JobAssignment
         
         if not job_id:
@@ -1219,6 +1237,73 @@ class PhlebotomistAcceptJobsAPIView(NewAPIView):
         data = {
             "success": True,
             "message": "Job accepted successfully."
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+class PhlebotomistRejectJobsAPIView(NewAPIView):
+    permission_classes = [IsApprovedPhlebotomist]
+    serializer_class = EmptySerializer
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(
+        request_body=EmptySerializer,
+        tags=['App (Phlebotomist) - Home Section']
+    )
+    def patch(self, request, job_id):
+        """
+        **Reject Job**
+
+        **Request Example**:
+        ```json
+        {
+            "job_id": 1
+        }
+        ```
+
+        **Response Example**:
+        ```json
+        {
+            "success": true,
+            "message": "Job assignment rejected successfully."
+        }
+        ```
+        """
+        from jobs.models import Job, JobApplication, JobAssignment
+        
+        if not job_id:
+            return Response({
+                "success": False,
+                "message": "Job ID is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            assignment = JobAssignment.objects.get(
+                phlebotomist=request.user,
+                job_id=job_id,
+                status=JobAssignment.PENDING
+            )
+        except JobAssignment.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Job assignment not found or already processed."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        job = assignment.job
+        
+        # Delete the job assignment so that the job becomes open/available again
+        assignment.delete()
+
+        # Update the application status to rejected if there is one
+        try:
+            application = JobApplication.objects.get(job=job, phlebotomist=request.user)
+            application.status = JobApplication.REJECTED
+            application.save()
+        except JobApplication.DoesNotExist:
+            pass
+
+        data = {
+            "success": True,
+            "message": "Job assignment rejected successfully."
         }
         return Response(data, status=status.HTTP_200_OK)
 
@@ -1658,6 +1743,89 @@ class PhlebotomistHomeAPIView(APIView):
         tags=['App (Phlebotomist) - Home Section']
     )
     def get(self, request, *args, **kwargs):
+        """
+        **Home Page of Phlebotomist**
+
+        **Request Example**:
+        ```json
+        {
+            "date_filter": "today"
+        }
+        ```
+        
+        **Response Example**:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "user": {
+                    "id": 1,
+                    "full_name": "Phlebotomist Name",
+                    "email": "[EMAIL_ADDRESS]",
+                    "avatar_url": "https://example.com/path/to/avatar.jpg",
+                    "subtitle": "Certified Phlebotomist • 5 years exp"
+                },
+                "metrics": {
+                    "total_jobs": 10,
+                    "upcoming_jobs": 3,
+                    "pending_payouts": 50.00,
+                    "completed_jobs": 5,
+                    "cancel_rate": "10%"
+                },
+                "next_job": {
+                    "id": 1,
+                    "job_id": 101,
+                    "title": "Morning Blood Draw",
+                    "client_name": "Clinic A",
+                    "shift": "09:00 AM - 12:00 PM",
+                    "date": "2024-11-25",
+                    "location": "123 Main St",
+                    "status": "active"
+                },
+                "urgent_jobs": [
+                    {
+                        "id": 1,
+                        "job_id": 102,
+                        "title": "Urgent Collection",
+                        "client_name": "Hospital B",
+                        "shift": "11:00 AM - 02:00 PM",
+                        "date": "2024-11-26",
+                        "location": "456 Oak Ave",
+                        "urgency": "urgent"
+                    }
+                ],
+                "completed_this_period": [
+                    {
+                        "id": 1,
+                        "job_id": 103,
+                        "title": "Afternoon Draw",
+                        "client_name": "Lab C",
+                        "shift": "02:00 PM - 05:00 PM",
+                        "date": "2024-11-24",
+                        "payment": {
+                            "amount": 45.00,
+                            "date": "2024-11-24"
+                        }
+                    }
+                ],
+                "license_expiration": {
+                    "expires_in_days": 45,
+                    "expiry_date": "2025-01-15",
+                    "warning_message": "License expires in 45 days"
+                }
+            },
+            "message": "Phlebotomist home data retrieved successfully."
+        }
+        ```
+        
+        **Response Example**:
+        ```json
+        {
+            "success": false,
+            "message": "Invalid date filter. Please use one of: today, weekly, monthly, all."
+        }
+        ``` 
+        """
         from authentication.models import User, Phlebotomist
         from communication.models import Review
         from jobs.models import Job, JobAssignment
