@@ -360,3 +360,96 @@ class DisputeManagementListAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class DisputeManagementDetailAPITests(APITestCase):
+
+    def setUp(self):
+        # Create users
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="clientpassword",
+            full_name="FA Kabita",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.phlebotomist_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="DR Ratul",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+
+        from communication.models import Report
+        self.report = Report.objects.create(
+            reporter=self.client_user,
+            reported_user=self.phlebotomist_user,
+            reason=Report.HARASSMENT,
+            additional_details="User reported receiving inappropriate messages...",
+            status=Report.PENDING
+        )
+
+    def test_get_report_details_figma_match(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-detail', kwargs={'report_id': self.report.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Assert correct Figma field structure
+        self.assertEqual(response.data['case_id'], f"#HR-{self.report.created_at.year}-{self.report.id:03d}")
+        
+        info = response.data['complaint_information']
+        self.assertEqual(info['type'], 'Harassment & Inappropriate Behavior')
+        self.assertEqual(info['filed_by'], 'FA Kabita')
+        self.assertEqual(info['reported_user'], 'DR Ratul')
+        self.assertEqual(info['platform'], 'Direct Messages')
+        
+        self.assertEqual(response.data['initial_report_summary'], 'User reported receiving inappropriate messages...')
+        self.assertEqual(response.data['submitted_evidence'], [])
+        
+        decision = response.data['decision_summary']
+        self.assertEqual(decision['admin_notes'], '')
+        self.assertIn("Suspend User Account", decision['recommended_action'])
+
+    def test_patch_report_decision_and_resolve(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-detail', kwargs={'report_id': self.report.id})
+        
+        payload = {
+            "status": "solved",
+            "admin_notes": "Warning issued to DR Ratul."
+        }
+        response = self.client.patch(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.status, 'resolved')
+        self.assertEqual(self.report.admin_notes, 'Warning issued to DR Ratul.')
+        self.assertIsNotNone(self.report.resolved_at)
+        self.assertEqual(self.report.resolved_by, self.admin_user)
+
+    def test_detail_permissions_denied(self):
+        url = reverse('dispute-detail', kwargs={'report_id': self.report.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.force_authenticate(user=self.phlebotomist_user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+

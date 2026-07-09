@@ -1733,3 +1733,53 @@ class DisputeManagementListAPIView(NewAPIView):
         finally:
             request._request.GET = original_query_params
 
+
+class DisputeManagementDetailAPIView(NewAPIView):
+    serializer_class = serializers.ReportDetailSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get', 'patch']
+
+    @swagger_auto_schema(tags=['Dashboard - Dispute Management'])
+    def get(self, request, report_id):
+        """
+        **Dispute Management Detail - Admin Only**\n
+        Retrieve detailed information of a dispute/report.
+        """
+        from communication.models import Report
+        report = get_object_or_404(Report, id=report_id)
+        serializer = self.get_serializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(tags=['Dashboard - Dispute Management'])
+    def patch(self, request, report_id):
+        """
+        **Update Dispute Management Status/Decision - Admin Only**\n
+        Update dispute status or decision notes.
+        """
+        from communication.models import Report
+        from django.utils import timezone
+        report = get_object_or_404(Report, id=report_id)
+
+        status_val = request.data.get('status')
+        admin_notes = request.data.get('admin_notes')
+
+        if status_val is not None:
+            status_val_lower = str(status_val).lower()
+            if status_val_lower in ['solved', 'resolved']:
+                report.status = Report.RESOLVED
+                report.resolved_at = timezone.now()
+                report.resolved_by = request.user
+            elif status_val_lower in ['reviewed', 'under review', 'under_review']:
+                report.status = Report.REVIEWED
+            elif status_val_lower == 'pending':
+                report.status = Report.PENDING
+            else:
+                return Response({"detail": f"Invalid status: {status_val}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if admin_notes is not None:
+            report.admin_notes = admin_notes
+
+        report.save()
+        serializer = self.get_serializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+

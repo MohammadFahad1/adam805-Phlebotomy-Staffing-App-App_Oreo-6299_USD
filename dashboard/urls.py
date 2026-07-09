@@ -25,4 +25,5 @@ urlpatterns = [
     # Dashboard Dispute Management
     path('dispute-statistics/', views.DisputeManagementStatisticsAPIView.as_view(), name='dispute-statistics'),
     path('disputes/', views.DisputeManagementListAPIView.as_view(), name='dispute-list'),
+    path('disputes/<int:report_id>/', views.DisputeManagementDetailAPIView.as_view(), name='dispute-detail'),
 ]

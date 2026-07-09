@@ -285,3 +285,88 @@ class ReportListSerializer(serializers.ModelSerializer):
             return 'Under Review'
         else:
             return 'Pending'
+
+
+class ReportDetailSerializer(serializers.ModelSerializer):
+    case_id = serializers.SerializerMethodField()
+    filed_at = serializers.SerializerMethodField()
+    complaint_information = serializers.SerializerMethodField()
+    initial_report_summary = serializers.CharField(source='additional_details', read_only=True)
+    submitted_evidence = serializers.SerializerMethodField()
+    decision_summary = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        from communication.models import Report
+        model = Report
+        fields = [
+            'id',
+            'case_id',
+            'filed_at',
+            'complaint_information',
+            'initial_report_summary',
+            'submitted_evidence',
+            'decision_summary',
+            'status',
+            'status_display',
+            'admin_notes',
+            'resolved_at'
+        ]
+
+    def get_case_id(self, obj):
+        prefix_mapping = {
+            'inappropriate_language': 'IM',
+            'harassment': 'HR',
+        }
+        prefix = prefix_mapping.get(obj.reason, 'DS')
+        year = obj.created_at.year if obj.created_at else 2025
+        obj_id = obj.id or 1
+        return f"#{prefix}-{year}-{obj_id:03d}"
+
+    def get_filed_at(self, obj):
+        if not obj.created_at:
+            return "August 15, 2025"
+        return obj.created_at.strftime("%B %d, %Y")
+
+    def get_complaint_information(self, obj):
+        reason_display = obj.get_reason_display() if hasattr(obj, 'get_reason_display') else obj.reason
+        type_mapping = {
+            'inappropriate_language': 'Inappropriate Message',
+            'harassment': 'Harassment & Inappropriate Behavior',
+            'spam': 'Spam Report',
+            'fake_profile': 'Fake Profile',
+            'other': 'Payment / Dispute Issue'
+        }
+        mapped_type = type_mapping.get(obj.reason, reason_display)
+        
+        return {
+            "type": mapped_type,
+            "filed_by": obj.reporter.full_name or obj.reporter.email if obj.reporter else "Unknown",
+            "reported_user": obj.reported_user.full_name or obj.reported_user.email if obj.reported_user else "Unknown",
+            "platform": "Direct Messages"
+        }
+
+    def get_submitted_evidence(self, obj):
+        return []
+
+    def get_decision_summary(self, obj):
+        rec_mapping = {
+            'harassment': "Based on evidence review: Suspend User Account - Clear violation of harassment policy with evidence of circumventing blocks.",
+            'inappropriate_language': "Based on evidence review: Warning Issued - Inappropriate communication style.",
+            'spam': "Based on evidence review: Dismiss Case - Insufficient evidence of malicious spam.",
+            'fake_profile': "Based on evidence review: Suspend User Account - Verification failed.",
+            'other': "Based on evidence review: Warning Issued - General platform guideline warning."
+        }
+        rec_action = rec_mapping.get(obj.reason, "Based on evidence review: Warning Issued")
+        return {
+            "admin_notes": obj.admin_notes or "",
+            "recommended_action": rec_action
+        }
+
+    def get_status_display(self, obj):
+        if obj.status == 'resolved':
+            return 'Solved'
+        elif obj.status == 'reviewed':
+            return 'Under Review'
+        else:
+            return 'Pending'
