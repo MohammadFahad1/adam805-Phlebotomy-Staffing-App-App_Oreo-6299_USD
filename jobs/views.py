@@ -19,7 +19,7 @@ from datetime import datetime
 
 User = get_user_model()
 
-
+# Client Endpoints
 class JobCreateView(NewAPIView):
     serializer_class = JobCreateSerializer
     permission_classes = [IsApprovedClient]
