@@ -1101,22 +1101,30 @@ class PhlebotomistPendingJobListAPIView(NewAPIView):
         Example Response:
         ```json
         {
-        "success": true,
-        "data": {
-            "jobs": [
-            {
-                "id": "JB-26-000002",
-                "title": "Massage Therapist",
-                "location": "123 Main St, Anytown, USA",
-                "shift_date": "August 14, 2025",
-                "shift_time": "10:00 AM - 6:00 PM",
-                "formatted_job_id": "#JB-26-000002",
-                "applied": false,
-                "accepted": false
-            }
-            ]
-        },
-        "message": "Pending jobs list retrieved successfully."
+            "success": true,
+            "data": [
+                    {
+                        "id": "JB-26-000002",
+                        "title": "Massage Therapist",
+                        "location": "123 Main St, Anytown, USA",
+                        "shift_date": "August 14, 2025",
+                        "shift_time": "10:00 AM - 6:00 PM",
+                        "formatted_job_id": "#JB-26-000002",
+                        "applied": false,
+                        "accepted": false
+                    },
+                    {
+                        "id": "JB-26-000003",
+                        "title": "Yoga Instructor",
+                        "location": "456 Oak Ave, Otherville, USA",
+                        "shift_date": "August 15, 2025",
+                        "shift_time": "9:00 AM - 5:00 PM",
+                        "formatted_job_id": "#JB-26-000003",
+                        "applied": false,
+                        "accepted": false
+                    }
+                ],
+            "message": "Pending jobs list retrieved successfully."
         }
         ```
 
@@ -1157,9 +1165,7 @@ class PhlebotomistPendingJobListAPIView(NewAPIView):
         
         data = {
             "success": True,
-            "data": {
-                "jobs": jobs_list
-            },
+            "data": jobs_list,
             "message": "Pending jobs list retrieved successfully."
         }
         return Response(data, status=status.HTTP_200_OK)
