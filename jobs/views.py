@@ -1408,7 +1408,8 @@ class PhlebotomistRatingsReviewsAPIView(UserRatingsReviewsAPIView):
 
 class ReportUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = EmptySerializer
+    from jobs.serializers import ReportUserSerializer
+    serializer_class = ReportUserSerializer
     http_method_names = ['get', 'post']
 
     @swagger_auto_schema(
@@ -1481,31 +1482,27 @@ class ReportUserAPIView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
-        request_body=EmptySerializer,
+        request_body=ReportUserSerializer,
         tags=['App (Common) - Reporting']
     )
     def post(self, request, *args, **kwargs):
         from communication.models import Report
         from authentication.models import User
         from jobs.models import Job
+        from jobs.serializers import ReportUserSerializer
 
-        reported_user_id = request.data.get('reported_user_id') or request.data.get('user_id')
-        reason = request.data.get('reason')
-        additional_details = request.data.get('additional_details', '')
-        job_id = request.data.get('job_id')
-
-        if not reported_user_id:
+        serializer = ReportUserSerializer(data=request.data)
+        if not serializer.is_valid():
             return Response({
                 "success": False,
-                "message": "Reported user ID is required."
+                "message": "Validation failed.",
+                "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        if not reason:
-            return Response({
-                "success": False,
-                "message": "Reason is required."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+        reported_user_id = serializer.validated_data.get('reported_user_id')
+        reason = serializer.validated_data.get('reason')
+        additional_details = serializer.validated_data.get('additional_details', '')
+        job_id = serializer.validated_data.get('job_id')
         # Normalize reason to match REASON_CHOICES keys
         reason_map = {
             'inappropriate language': Report.INAPPROPRIATE_LANGUAGE,

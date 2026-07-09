@@ -56,3 +56,28 @@ class JobCreateSerializer(serializers.Serializer):
     )
 
 
+class ReportUserSerializer(serializers.Serializer):
+    reported_user_id = serializers.IntegerField(
+        required=True,
+        help_text="ID of the user being reported."
+    )
+    reason = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Reason for reporting. E.g. 'Inappropriate Language', 'Harassment', 'Spam', 'Fake Profile', 'Other'"
+    )
+    additional_details = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Optional additional details about the report."
+    )
+    job_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Optional associated Job ID."
+    )
+
+
+
