@@ -958,46 +958,50 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
         ```json
         {
             "success": true,
-            "id": "job_id_here",
-            "title": "Phlebotomist Needed",
-            "description": "Looking for a qualified phlebotomist for a mobile blood draw at 123 Main St, Anytown, USA.",
-            "status": "Approved",
-            "client_name": "Acme Corp",
-            "client_address": "123 Main St, Anytown, CA 90210",
-            "client_business_name": "(Acme Corp)",
-            "client_phone": "(555) 123-4567",
-            "shift_date": "July 15, 2025",
-            "shift_time": "9:00 AM - 1:00 PM (4 hours)",
-            "formatted_job_id": "#job_id_here",
-            "hourly_rate": "$25.00/hr",
-            "total_hours": "4.0 hrs",
-            "subtotal": "$100.00",
-            "service_fee": "-$5.00",
-            "tax_withholding": "-$15.00",
-            "total_earnings": "$80.00",
+            "id": "JB-26-000004",
+            "title": "Physical Therapist",
+            "description": "Physical therapy support.",
+            "status": "open",
+            "applied": true,
+            "application_status": "pending",
+            "client_name": "Faysal Munshi",
+            "client_address": "Bir Sreshtho AK Khandokar Road, Mohakhali, Dhaka, Bangladesh 1212",
+            "client_business_name": "(Metro General Hospital)",
+            "client_phone": "01772211521",
+            "shift_date": "August 15, 2025",
+            "shift_time": "11:00 PM - 7:00 AM (3 hours)",
+            "formatted_job_id": "#JB-26-000004",
+            "hourly_rate": "$30.00",
+            "total_hours": "3.0 hrs",
+            "subtotal": "$90.00",
+            "service_fee": "-$4.50",
+            "tax_withholding": "-$13.50",
+            "total_earnings": "$72.00",
             "client_info": {
-                "name": "Acme Corp",
+                "name": "Faysal Munshi",
                 "role": "Client",
-                "address": "123 Main St, Anytown, CA 90210",
-                "business_name": "(Acme Corp)",
-                "phone": "(555) 123-4567"
+                "address": "Bir Sreshtho AK Khandokar Road, Mohakhali, Dhaka, Bangladesh 1212",
+                "business_name": "(Metro General Hospital)",
+                "phone": "01772211521"
             },
             "job_details": {
-                "title": "Phlebotomist Needed",
-                "shift_date": "July 15, 2025",
-                "shift_time": "9:00 AM - 1:00 PM (4 hours)",
-                "formatted_job_id": "#job_id_here",
-                "description": "Looking for a qualified phlebotomist for a mobile blood draw at 123 Main St, Anytown, USA."
+                "title": "Physical Therapist",
+                "shift_date": "August 15, 2025",
+                "shift_time": "11:00 PM - 7:00 AM (3 hours)",
+                "formatted_job_id": "#JB-26-000004",
+                "description": "Physical therapy support."
             },
             "payment_breakdown": {
-                "hourly_rate": "$25.00/hr",
-                "total_hours": "4.0 hrs",
-                "subtotal": "$100.00",
-                "service_fee": "-$5.00",
-                "tax_withholding": "-$15.00",
-                "total_earnings": "$80.00"
+                "hourly_rate": "$30.00",
+                "total_hours": "3.0 hrs",
+                "subtotal": "$90.00",
+                "service_fee": "-$4.50",
+                "tax_withholding": "-$13.50",
+                "total_earnings": "$72.00"
             }
         }
+        ```
+
         Error Responses:
         - 404 Not Found: If the job with the specified ID does not exist.
         - 403 Forbidden: If the user is not authenticated or not an approved phlebotomist.
