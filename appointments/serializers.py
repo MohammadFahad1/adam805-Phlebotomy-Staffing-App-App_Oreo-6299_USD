@@ -26,7 +26,6 @@ class AppointmentCreateSerializer(serializers.Serializer):
     dob = serializers.DateField(write_only=True)
     gender = serializers.ChoiceField(choices=[('male', 'Male'), ('female', 'Female')], write_only=True)
     service_package = serializers.PrimaryKeyRelatedField(queryset=ServicePackage.objects.all(), write_only=True)
-    phlebotomist = serializers.PrimaryKeyRelatedField(read_only=True)
     appointment_date = serializers.DateField(write_only=True)
     start_time = serializers.TimeField(write_only=True)
     end_time = serializers.TimeField(write_only=True)

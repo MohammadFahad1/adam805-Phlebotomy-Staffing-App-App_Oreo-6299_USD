@@ -304,9 +304,6 @@ class AppointmentListView(NewAPIView):
         # Role-based filtering
         if user.role == User.CLIENT:
             queryset = queryset.none()
-        elif user.role == User.PHLEBOTOMIST:
-            # Get appointments for this phlebotomist
-            queryset = queryset.filter(phlebotomist=user)
         
         # Date filtering
         start_date = self.request.query_params.get('start_date')
@@ -318,15 +315,9 @@ class AppointmentListView(NewAPIView):
         if end_date:
             queryset = queryset.filter(appointment_date__lte=end_date)
         
-        # Phlebotomist ID filtering
-        phlebotomist_id = self.request.query_params.get('phlebotomist_id')
-        if phlebotomist_id:
-            queryset = queryset.filter(phlebotomist_id=phlebotomist_id)
-        
         return queryset.select_related(
             'patient', 
             'service_package', 
-            'phlebotomist'
         )
     
     @swagger_auto_schema(
@@ -345,12 +336,6 @@ class AppointmentListView(NewAPIView):
                 type=openapi.TYPE_STRING,
                 format='date',
                 description='Filter by end date (YYYY-MM-DD)'
-            ),
-            openapi.Parameter(
-                'phlebotomist_id',
-                openapi.IN_QUERY,
-                type=openapi.TYPE_INTEGER,
-                description='Filter by phlebotomist ID'
             )
         ]
     )
@@ -400,19 +385,6 @@ class AppointmentListView(NewAPIView):
                     "created_at": "2023-01-15T10:00:00Z",
                     "updated_at": "2023-01-15T10:00:00Z"
                 },
-                "phlebotomist": {
-                    "id": 1,
-                    "email": "[EMAIL_ADDRESS]",
-                    "first_name": "John",
-                    "last_name": "Doe",
-                    "role": "phlebotomist",
-                    "is_active": true,
-                    "profile": {
-                        "profile_image": "https://example.com/profile.jpg",
-                        "phone_number": "+1234567890",
-                        "bio": "Experienced phlebotomist with 5 years of experience."
-                    }
-                },
                 "appointment_date": "2023-02-15",
                 "start_time": "10:00:00",
                 "end_time": "10:30:00",
@@ -425,20 +397,17 @@ class AppointmentListView(NewAPIView):
         ```
         """
         queryset = self.get_queryset()
-        serializer = serializers.AppointmentListSerializer(queryset, many=True)
+        serializer = serializers.AppointmentListSerializer(queryset, many=True, context={'request': request})
         return AutoPaginatedResponse(serializer.data, request)
 
 class AppointmentDetailView(NewAPIView):
     serializer_class = serializers.AppointmentDetailSerializer
     permission_classes = [IsAdminUser]
-    """
-    Retrieve a single appointment with full details including patient and phlebotomist information
-    """
-    
+
     def get_object(self):
         appointment_id = self.kwargs['pk']
         appointment = get_object_or_404(
-            Appointment.objects.select_related('patient', 'service_package', 'phlebotomist'),
+            Appointment.objects.select_related('patient', 'service_package'),
             id=appointment_id
         )
         
@@ -498,19 +467,6 @@ class AppointmentDetailView(NewAPIView):
                 "created_at": "2023-01-15T10:00:00Z",
                 "updated_at": "2023-01-15T10:00:00Z"
             },
-            "phlebotomist": {
-                "id": 1,
-                "email": "[EMAIL_ADDRESS]",
-                "first_name": "John",
-                "last_name": "Doe",
-                "role": "phlebotomist",
-                "is_active": true,
-                "profile": {
-                    "profile_image": "https://example.com/profile.jpg",
-                    "phone_number": "+1234567890",
-                    "bio": "Experienced phlebotomist with 5 years of experience."
-                }
-            },
             "appointment_date": "2023-02-15",
             "start_time": "10:00:00",
             "end_time": "10:30:00",
@@ -532,6 +488,6 @@ class AppointmentDetailView(NewAPIView):
         ```
         """
         appointment = self.get_object()
-        serializer = serializers.AppointmentDetailSerializer(appointment)
+        serializer = serializers.AppointmentDetailSerializer(appointment, context={'request': request})
         return Response(serializer.data)
 

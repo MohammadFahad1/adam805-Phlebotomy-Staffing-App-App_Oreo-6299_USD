@@ -61,7 +61,6 @@ class Appointment(models.Model):
     ]
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name='appointments')
     service_package = models.ForeignKey(ServicePackage, on_delete=models.PROTECT, related_name='appointments')
-    phlebotomist = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_appointments',limit_choices_to={'role': 'phlebotomist'})
     appointment_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField(null=True, blank=True)

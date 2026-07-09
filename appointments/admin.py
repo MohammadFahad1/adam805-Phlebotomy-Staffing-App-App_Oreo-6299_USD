@@ -56,20 +56,18 @@ class AppointmentAdmin(admin.ModelAdmin):
         'id', 
         'get_patient_name', 
         'service_package', 
-        'phlebotomist', 
         'appointment_date', 
         'start_time', 
         'location_type', 
         'status'
     )
     list_filter = ('status', 'location_type', 'appointment_date', 'medical_conditions', 'created_at')
-    list_editable = ('status', 'phlebotomist')
+    list_editable = ('status',)
     search_fields = (
         'patient__first_name', 
         'patient__last_name', 
         'patient__email', 
-        'phlebotomist__full_name', 
-        'phlebotomist__email',
+        'service_package__name', 
         'location'
     )
     
@@ -78,7 +76,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Core Assignment & Lifecycle', {
-            'fields': ('status', 'patient', 'service_package', 'phlebotomist')
+            'fields': ('status', 'patient', 'service_package')
         }),
         ('Schedule & Logistics', {
             'fields': ('appointment_date', ('start_time', 'end_time'), ('location_type', 'location'))
@@ -99,7 +97,7 @@ class AppointmentAdmin(admin.ModelAdmin):
 
     # Optimization: Runs SQL JOIN queries to eliminate N+1 performance bottlenecks
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('patient', 'service_package', 'phlebotomist')
+        return super().get_queryset(request).select_related('patient', 'service_package')
 
     @admin.display(ordering='patient__first_name', description='Patient')
     def get_patient_name(self, obj):
