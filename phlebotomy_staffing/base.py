@@ -21,11 +21,16 @@ class NewAPIView(APIView):
         Return the class to use for the serializer.
         Defaults to using `self.serializer_class`.
         """
-        assert self.serializer_class is not None, (
+        if getattr(self, 'swagger_fake_view', False):
+            from rest_framework.serializers import Serializer
+            return getattr(self, 'serializer_class', Serializer) or Serializer
+
+        serializer_class = getattr(self, 'serializer_class', None)
+        assert serializer_class is not None, (
             f"'{self.__class__.__name__}' should either include a `serializer_class` "
             "attribute, or override the `get_serializer_class()` method."
         )
-        return self.serializer_class
+        return serializer_class
 
     def get_serializer_context(self):
         """
