@@ -1733,7 +1733,6 @@ class DisputeManagementListAPIView(NewAPIView):
         finally:
             request._request.GET = original_query_params
 
-
 class DisputeManagementDetailAPIView(NewAPIView):
     serializer_class = serializers.ReportDetailSerializer
     permission_classes = [IsAdminUser]
@@ -1791,10 +1790,15 @@ class DisputeManagementDetailAPIView(NewAPIView):
         **Update Dispute Management Status/Decision - Admin Only**\n
         Update dispute status or decision notes.
 
-        **Request Body:**
+        **Request Body**:
+        - status: "required" (enum: "pending", "reviewed", "resolved")
+        - admin_notes: "optional"
+        - resolved_at: "required" 
+
+        **Example Request Body:**
         ```json
         {
-            "status": "solved",
+            "status": "resolved",
             "admin_notes": "Case resolved and action taken.",
             "resolved_at": "2026-07-09T10:32:13.840Z"
         }
