@@ -1282,6 +1282,90 @@ class ReportUserAPIViewTests(APITestCase):
         self.assertEqual(data['data']['reason'], "spam")
 
 
+class PhlebotomistHomeAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment
+        from authentication.models import Phlebotomist
+        import datetime
+
+        # Client user
+        self.client_user = User.objects.create_user(
+            email="client_home@example.com",
+            password="SecurePassword123!",
+            full_name="Client User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_home@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb User",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-999999",
+            license_expiry_date=datetime.date(2030, 8, 15),
+            years_of_experience=5,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Job
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Station",
+            description="Perform venipuncture.",
+            location="General Hospital, Room 205",
+            city="Dhaka",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(14, 30),
+            shift_end=datetime.time(15, 0),
+            shift_duration=1,
+            pay_type="hourly",
+            pay_rate=50.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # JobAssignment
+        self.assignment = JobAssignment.objects.create(
+            job=self.job,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status=JobAssignment.ACTIVE,
+            signed_by_phlebotomist=True
+        )
+
+        self.home_url = reverse('phlebotomist-home')
+
+    def test_phlebotomist_home_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.home_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['user']['full_name'], "Phleb User")
+        self.assertEqual(data['data']['metrics']['pending_payouts'], "$40")
+        self.assertEqual(data['data']['next_job']['title'], "Blood Draw Station")
+        self.assertEqual(data['data']['next_job']['location'], "General Hospital, Room 205")
+        self.assertEqual(data['data']['license_expiration']['expiry_date'], "15 August 2030")
+
+
+
 
 
 

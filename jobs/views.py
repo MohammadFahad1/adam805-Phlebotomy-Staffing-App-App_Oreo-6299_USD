@@ -1646,4 +1646,245 @@ class ReportUserAPIView(APIView):
             }
         }, status=status.HTTP_201_CREATED)
 
+class PhlebotomistHomeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmptySerializer
+    http_method_names = ['get']
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('date_filter', openapi.IN_QUERY, description="Filter metrics by: today, weekly, monthly, all", type=openapi.TYPE_STRING, required=False)
+        ],
+        tags=['Phlebotomist - Home']
+    )
+    def get(self, request, *args, **kwargs):
+        from authentication.models import User, Phlebotomist
+        from communication.models import Review
+        from jobs.models import Job, JobAssignment
+        from django.db.models import Avg
+        from django.utils import timezone
+        import datetime
+
+        try:
+            user = User.objects.get(id=request.user.id)
+            profile = Phlebotomist.objects.get(user=user)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "User does not exist."
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Phlebotomist.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Phlebotomist profile not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Calculate user rating
+        reviews = Review.objects.filter(reviewed=user)
+        avg = reviews.aggregate(Avg('rating'))['rating__avg']
+        rating = round(avg, 1) if avg is not None else 4.8
+        reviews_count = reviews.count()
+
+        # Specialty & subtitle
+        try:
+            specialty = profile.get_specialty_display() if hasattr(profile, 'get_specialty_display') else (profile.specialty or "Certified Phlebotomist")
+            exp = f"{profile.years_of_experience} years exp" if profile.years_of_experience else "No exp"
+            subtitle = f"{specialty} • {exp}"
+        except Exception:
+            subtitle = "Certified Phlebotomist"
+
+        avatar_url = request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+
+        user_data = {
+            "id": user.id,
+            "full_name": user.full_name,
+            "avatar": avatar_url,
+            "rating": rating,
+            "reviews_count": reviews_count,
+            "subtitle": subtitle
+        }
+
+        # Date Filtering & Metrics
+        date_filter = request.query_params.get('date_filter', 'all').lower()
+        today_date = timezone.now().date()
+        
+        completed_assignments = JobAssignment.objects.filter(
+            phlebotomist=user,
+            status=JobAssignment.COMPLETED
+        )
+        
+        metric_assignments = completed_assignments
+        if date_filter == 'today':
+            metric_assignments = metric_assignments.filter(job__shift_date=today_date)
+        elif date_filter == 'weekly':
+            start_week = today_date - datetime.timedelta(days=today_date.weekday())
+            metric_assignments = metric_assignments.filter(job__shift_date__gte=start_week)
+        elif date_filter == 'monthly':
+            metric_assignments = metric_assignments.filter(
+                job__shift_date__month=today_date.month,
+                job__shift_date__year=today_date.year
+            )
+
+        # Total Earnings (80% net of subtotal)
+        total_earnings = 0.0
+        for assignment in metric_assignments:
+            subtotal = float(assignment.job.pay_rate or 0) * float(assignment.job.shift_duration or 0)
+            total_earnings += 0.80 * subtotal
+
+        # Today Earnings
+        today_assignments = completed_assignments.filter(job__shift_date=today_date)
+        today_earnings = 0.0
+        for assignment in today_assignments:
+            subtotal = float(assignment.job.pay_rate or 0) * float(assignment.job.shift_duration or 0)
+            today_earnings += 0.80 * subtotal
+
+        # Pending Payouts (Active assignments earnings)
+        active_assignments = JobAssignment.objects.filter(
+            phlebotomist=user,
+            status=JobAssignment.ACTIVE
+        )
+        pending_payouts = 0.0
+        for assignment in active_assignments:
+            subtotal = float(assignment.job.pay_rate or 0) * float(assignment.job.shift_duration or 0)
+            pending_payouts += 0.80 * subtotal
+
+        metrics = {
+            "total_earnings": f"${total_earnings:,.0f}",
+            "jobs_done": metric_assignments.count(),
+            "rating": rating,
+            "today_earnings": f"${today_earnings:,.0f}",
+            "pending_payouts": f"${pending_payouts:,.0f}"
+        }
+
+        # Next Job Card
+        now = timezone.now()
+        next_assignment = JobAssignment.objects.filter(
+            phlebotomist=user,
+            status__in=[JobAssignment.ACTIVE, JobAssignment.PENDING]
+        ).filter(
+            job__shift_date__gte=today_date
+        ).select_related('job', 'job__client').order_by('job__shift_date', 'job__shift_start').first()
+
+        next_job_data = None
+        if next_assignment:
+            job = next_assignment.job
+            date_str = "Today" if job.shift_date == today_date else job.shift_date.strftime("%B %d, %Y")
+            start_str = job.shift_start.strftime("%I:%M %p").lstrip('0')
+            end_str = job.shift_end.strftime("%I:%M %p").lstrip('0')
+            shift_time_str = f"{date_str}, {start_str} - {end_str}"
+            
+            job_start_datetime = timezone.make_aware(datetime.datetime.combine(job.shift_date, job.shift_start))
+            time_diff = job_start_datetime - now
+            
+            if time_diff.total_seconds() < 0:
+                tag = "Started"
+            else:
+                hours = int(time_diff.total_seconds() // 3600)
+                minutes = int((time_diff.total_seconds() % 3600) // 60)
+                if hours > 0:
+                    tag = f"In {hours} hour{'s' if hours != 1 else ''}"
+                else:
+                    tag = f"In {minutes} minute{'s' if minutes != 1 else ''}"
+                    
+            next_job_data = {
+                "id": job.id,
+                "title": job.title,
+                "location": job.location,
+                "shift_time": shift_time_str,
+                "tag": tag,
+                "client_name": job.client.full_name if job.client else "Client"
+            }
+
+        # License Expiration Countdown
+        license_expiration = None
+        if hasattr(profile, 'license_expiry_date') and profile.license_expiry_date:
+            expiry_date = profile.license_expiry_date
+            formatted_expiry = expiry_date.strftime("%d %B %Y")
+            
+            diff_days = (expiry_date - today_date).days
+            if diff_days < 0:
+                left_str = "Expired"
+            else:
+                years = diff_days // 365
+                rem_days = diff_days % 365
+                months = rem_days // 30
+                days = rem_days % 30
+                
+                parts = []
+                if years > 0:
+                    parts.append(f"{years} Year{'s' if years != 1 else ''}")
+                if months > 0:
+                    parts.append(f"{months} Month{'s' if months != 1 else ''}")
+                if days > 0:
+                    parts.append(f"{days} Day{'s' if days != 1 else ''}")
+                left_str = " ".join(parts) + " left" if parts else "Expires today"
+                
+            license_expiration = {
+                "expiry_date": formatted_expiry,
+                "days_left_text": left_str
+            }
+
+        # Recent Activity Stream
+        recent_activities = []
+        
+        # 1. Job Assignment activities
+        all_assignments = JobAssignment.objects.filter(phlebotomist=user).select_related('job').order_by('-created_at')[:5]
+        for assign in all_assignments:
+            job = assign.job
+            subtotal = float(job.pay_rate or 0) * float(job.shift_duration or 0)
+            net = 0.80 * subtotal
+            
+            if assign.status == JobAssignment.COMPLETED:
+                title = "Job Completed"
+                desc = job.location or ""
+                amount = f"+${net:,.0f}"
+            elif assign.status == JobAssignment.ACTIVE:
+                title = "Job Accepted"
+                desc = job.location or ""
+                amount = f"+${net:,.0f}"
+            else:
+                title = "Job Offered"
+                desc = job.location or ""
+                amount = ""
+                
+            recent_activities.append({
+                "title": title,
+                "description": desc,
+                "amount": amount,
+                "type": "job",
+                "date": assign.created_at
+            })
+            
+        # 2. Review activities
+        all_reviews = Review.objects.filter(reviewed=user).select_related('reviewer').order_by('-created_at')[:5]
+        for rev in all_reviews:
+            recent_activities.append({
+                "title": f"New {rev.rating}-Star Rating",
+                "description": f"From client {rev.reviewer.full_name}",
+                "amount": "",
+                "type": "rating",
+                "date": rev.created_at
+            })
+            
+        # Sort combined activity lists by date descending, keep top 5
+        recent_activities.sort(key=lambda x: x['date'], reverse=True)
+        recent_activities = recent_activities[:5]
+        
+        # Remove date key before serialization
+        for act in recent_activities:
+            act.pop('date')
+
+        return Response({
+            "success": True,
+            "data": {
+                "user": user_data,
+                "metrics": metrics,
+                "next_job": next_job_data,
+                "license_expiration": license_expiration,
+                "recent_activities": recent_activities
+            },
+            "message": "Phlebotomist home data retrieved successfully."
+        }, status=status.HTTP_200_OK)
+
+
 
