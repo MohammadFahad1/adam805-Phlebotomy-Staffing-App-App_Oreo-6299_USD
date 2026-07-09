@@ -1034,11 +1034,11 @@ class PhlebotomistAcceptJobsAPIViewTests(APITestCase):
             status=JobAssignment.PENDING
         )
 
-        self.accept_url = reverse('phlebotomist-accept-job')
+        self.accept_url = reverse('phlebotomist-accept-job', kwargs={'job_id': self.job.id})
 
     def test_accept_job_success(self):
         self.client.force_authenticate(user=self.phleb_user)
-        response = self.client.patch(self.accept_url, {'job_id': self.job.id})
+        response = self.client.patch(self.accept_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         data = response.data
@@ -1051,6 +1051,133 @@ class PhlebotomistAcceptJobsAPIViewTests(APITestCase):
         self.assertEqual(self.job.status, "in_progress")
         self.assertEqual(self.assignment.status, "active")
         self.assertTrue(self.assignment.signed_by_phlebotomist)
+
+
+class UserRatingsReviewsAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job
+        from authentication.models import Phlebotomist, Client
+        from communication.models import Review
+        import datetime
+
+        # Create Client user 1 (being reviewed)
+        self.client_user = User.objects.create_user(
+            email="client_rev@example.com",
+            password="SecurePassword123!",
+            full_name="Client Reviewed",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Community Health Center",
+            business_type=Client.HEALTHCARE,
+            business_address_street="123 ABC Street Mirpur",
+            business_address_city="Dhaka",
+            business_address_state="Dhaka Division",
+            business_address_zip="1216",
+            contact_person_name="Client Reviewed",
+            business_phone="(123) 123-4567",
+            business_license_number="LIC-11111",
+            business_description="Community clinic.",
+            hourly_pay_rate=25.00,
+            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
+            work_preference=Client.FULL_TIME,
+            is_approved=True
+        )
+
+        # Create Phlebotomist user 1 (being reviewed)
+        self.phleb_user = User.objects.create_user(
+            email="phleb_rev@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Reviewed",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-777777",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Create Job
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Station",
+            description="Perform venipuncture.",
+            location="123 ABC Street Mirpur, Dhaka 1216",
+            city="Dhaka",
+            shift_date=datetime.date(2025, 7, 15),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(13, 0),
+            shift_duration=4,
+            pay_type="hourly",
+            pay_rate=25.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # Create Review 1 (Client reviews Phlebotomist)
+        self.r1 = Review.objects.create(
+            job=self.job,
+            reviewer=self.client_user,
+            reviewed=self.phleb_user,
+            rating=5,
+            comment="Excellent service!"
+        )
+
+        # Create Review 2 (Phlebotomist reviews Client)
+        self.r2 = Review.objects.create(
+            job=self.job,
+            reviewer=self.phleb_user,
+            reviewed=self.client_user,
+            rating=4,
+            comment="Very nice client, on time."
+        )
+
+        self.phleb_reviews_url = reverse('phlebotomist-ratings-reviews')
+        self.client_reviews_url = reverse('client-ratings-reviews')
+
+    def test_phlebotomist_ratings_reviews_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.phleb_reviews_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['average_rating'], 5.0)
+        self.assertEqual(data['data']['total_reviews_count'], 1)
+        self.assertEqual(len(data['data']['reviews']), 1)
+        self.assertEqual(data['data']['reviews'][0]['reviewer_name'], "Client Reviewed")
+        self.assertEqual(data['data']['reviews'][0]['comment'], "Excellent service!")
+        self.assertEqual(data['data']['reviews'][0]['rating'], 5)
+
+    def test_client_ratings_reviews_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(self.client_reviews_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['average_rating'], 4.0)
+        self.assertEqual(data['data']['total_reviews_count'], 1)
+        self.assertEqual(len(data['data']['reviews']), 1)
+        self.assertEqual(data['data']['reviews'][0]['reviewer_name'], "Phleb Reviewed")
+        self.assertEqual(data['data']['reviews'][0]['comment'], "Very nice client, on time.")
+        self.assertEqual(data['data']['reviews'][0]['rating'], 4)
+
 
 
 

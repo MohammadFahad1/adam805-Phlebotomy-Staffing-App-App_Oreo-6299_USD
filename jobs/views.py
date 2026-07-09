@@ -1222,4 +1222,84 @@ class PhlebotomistAcceptJobsAPIView(NewAPIView):
         }
         return Response(data, status=status.HTTP_200_OK)
 
+class UserRatingsReviewsAPIView(NewAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmptySerializer
+    http_method_names = ['get']
+
+    def get(self, request):
+        from communication.models import Review
+        from django.db.models import Avg
+        from django.utils import timezone
+        
+        # Calculate humanized time
+        def humanize_time(dt):
+            now = timezone.now()
+            diff = now - dt
+            if diff.days == 0:
+                if diff.seconds < 60:
+                    return "just now"
+                elif diff.seconds < 3600:
+                    minutes = diff.seconds // 60
+                    return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                else:
+                    hours = diff.seconds // 3600
+                    return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            elif diff.days < 7:
+                return f"{diff.days} day{'s' if diff.days != 1 else ''} ago"
+            elif diff.days < 30:
+                weeks = diff.days // 7
+                return f"{weeks} week{'s' if weeks != 1 else ''} ago"
+            elif diff.days < 365:
+                months = diff.days // 30
+                return f"{months} month{'s' if months != 1 else ''} ago"
+            else:
+                years = diff.days // 365
+                return f"{years} year{'s' if years != 1 else ''} ago"
+
+        reviews = Review.objects.filter(reviewed=request.user).order_by('-created_at')
+        total_reviews_count = reviews.count()
+        
+        avg_rating = reviews.aggregate(Avg('rating'))['rating__avg']
+        average_rating = round(avg_rating, 1) if avg_rating is not None else 0.0
+
+        reviews_list = []
+        for r in reviews:
+            pic_url = request.build_absolute_uri(r.reviewer.profile_picture.url) if r.reviewer.profile_picture else None
+            reviews_list.append({
+                "id": r.id,
+                "reviewer_name": r.reviewer.full_name,
+                "reviewer_profile_picture": pic_url,
+                "rating": r.rating,
+                "comment": r.comment,
+                "created_at": humanize_time(r.created_at)
+            })
+
+        data = {
+            "success": True,
+            "data": {
+                "average_rating": average_rating,
+                "total_reviews_count": total_reviews_count,
+                "reviews": reviews_list
+            },
+            "message": "Ratings and reviews retrieved successfully."
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class ClientRatingsReviewsAPIView(UserRatingsReviewsAPIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=['App (Client) - Home Section'])
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class PhlebotomistRatingsReviewsAPIView(UserRatingsReviewsAPIView):
+    permission_classes = [IsApprovedPhlebotomist]
+
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
 
