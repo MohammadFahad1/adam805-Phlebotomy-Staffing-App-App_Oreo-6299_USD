@@ -319,3 +319,167 @@ class JobTemplateListingTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
 
+class PhlebotomistJobApplyViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment, JobApplication
+        from authentication.models import Phlebotomist
+        import datetime
+
+        # Create Client user
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="SecurePassword123!",
+            full_name="Client User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create Phlebotomist users
+        self.phleb_user1 = User.objects.create_user(
+            email="phleb1@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb One",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile1 = Phlebotomist.objects.create(
+            user=self.phleb_user1,
+            license_number="LIC-123456",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=5,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        self.phleb_user2 = User.objects.create_user(
+            email="phleb2@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Two",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile2 = Phlebotomist.objects.create(
+            user=self.phleb_user2,
+            license_number="LIC-654321",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=3,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Create an open job to apply to
+        self.open_job = Job.objects.create(
+            client=self.client_user,
+            title="Open Draw Job",
+            description="Regular blood draw service.",
+            location="123 Main Street",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.OPEN
+        )
+
+        # Create a draft job
+        self.draft_job = Job.objects.create(
+            client=self.client_user,
+            title="Draft Job",
+            description="Draft.",
+            location="123 Main Street",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.DRAFT
+        )
+
+        self.apply_url = reverse('phlebotomist-job-apply', kwargs={'job_id': self.open_job.id})
+
+    def test_apply_success(self):
+        self.client.force_authenticate(user=self.phleb_user1)
+        response = self.client.post(self.apply_url)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['detail'], "Job application submitted successfully.")
+
+        from jobs.models import JobApplication
+        self.assertTrue(JobApplication.objects.filter(job=self.open_job, phlebotomist=self.phleb_user1).exists())
+
+    def test_apply_invalid_status(self):
+        self.client.force_authenticate(user=self.phleb_user1)
+        url = reverse('phlebotomist-job-apply', kwargs={'job_id': self.draft_job.id})
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Cannot apply", response.data['detail'])
+
+    def test_apply_already_assigned(self):
+        # Assign job to phleb2
+        from jobs.models import JobAssignment
+        JobAssignment.objects.create(
+            job=self.open_job,
+            phlebotomist=self.phleb_user2,
+            client=self.client_user,
+            status=JobAssignment.ACTIVE
+        )
+
+        self.client.force_authenticate(user=self.phleb_user1)
+        response = self.client.post(self.apply_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], "A phlebotomist is already assigned to this job.")
+
+    def test_apply_schedule_conflict(self):
+        # Create another job and assign to phleb1 on same date and overlapping hours
+        import datetime
+        from jobs.models import Job, JobAssignment
+        conflict_job = Job.objects.create(
+            client=self.client_user,
+            title="Conflict Job",
+            description="Overlap.",
+            location="123 Main Street",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(10, 0),
+            shift_end=datetime.time(14, 0),
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.IN_PROGRESS
+        )
+        JobAssignment.objects.create(
+            job=conflict_job,
+            phlebotomist=self.phleb_user1,
+            client=self.client_user,
+            status=JobAssignment.ACTIVE
+        )
+
+        # Now phleb1 tries to apply to open_job (shift 9:00 - 17:00, which overlaps with 10:00 - 14:00)
+        self.client.force_authenticate(user=self.phleb_user1)
+        response = self.client.post(self.apply_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], "You have a schedule conflict with another active job at this time.")
+
+    def test_apply_duplicate(self):
+        self.client.force_authenticate(user=self.phleb_user1)
+        response = self.client.post(self.apply_url)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Apply again
+        response = self.client.post(self.apply_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], "You have already applied to this job.")
+
+
+

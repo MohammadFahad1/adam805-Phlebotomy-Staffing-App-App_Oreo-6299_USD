@@ -54,3 +54,5 @@ class JobCreateSerializer(serializers.Serializer):
         choices=Job.JOB_TYPE_CHOICES,
         help_text="Type of job. Choices: urgent, full_day, part_time."
     )
+
+

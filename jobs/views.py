@@ -1,3 +1,4 @@
+from authentication.permissions import IsApprovedPhlebotomist
 from phlebotomy_staffing.base import AutoPaginatedResponse, NewAPIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -540,3 +541,69 @@ class JobTemplateDetailView(NewAPIView):
         })
 
 
+# Phlebotomist Endpoints
+class PhlebotomistJobApplyView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedPhlebotomist]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Job'])
+    def post(self, request, job_id):
+        """
+        **Apply for a Job - Approved Phlebotomists Only**\n
+        Apply to an open/approved job if no scheduling conflict exists and no phlebotomist is assigned.
+        """
+        from jobs.models import Job, JobAssignment, JobApplication
+
+        job = get_object_or_404(Job, id=job_id)
+
+        # 1. Job Status check: cannot apply if draft, pending approval, in progress, completed, or cancelled
+        if job.status in [Job.DRAFT, Job.PENDING_APPROVAL, Job.IN_PROGRESS, Job.COMPLETED, Job.CANCELLED]:
+            return Response(
+                {"detail": f"Cannot apply to a job with status: {job.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2. Check if a phlebotomist is already assigned to this job
+        if JobAssignment.objects.filter(job=job).exists():
+            return Response(
+                {"detail": "A phlebotomist is already assigned to this job."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Check for schedule conflict
+        overlapping_assignments = JobAssignment.objects.filter(
+            phlebotomist=request.user,
+            status__in=[JobAssignment.ACTIVE, JobAssignment.PENDING]
+        ).exclude(
+            job__status__in=[Job.COMPLETED, Job.CANCELLED]
+        ).filter(
+            job__shift_date=job.shift_date,
+            job__shift_start__lt=job.shift_end,
+            job__shift_end__gt=job.shift_start
+        ).exclude(job=job)
+
+        if overlapping_assignments.exists():
+            return Response(
+                {"detail": "You have a schedule conflict with another active job at this time."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 4. Check if already applied
+        if JobApplication.objects.filter(job=job, phlebotomist=request.user).exists():
+            return Response(
+                {"detail": "You have already applied to this job."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 5. Create Job Application
+        JobApplication.objects.create(
+            job=job,
+            phlebotomist=request.user,
+            status=JobApplication.PENDING
+        )
+
+        return Response(
+            {"detail": "Job application submitted successfully."},
+            status=status.HTTP_201_CREATED
+        )

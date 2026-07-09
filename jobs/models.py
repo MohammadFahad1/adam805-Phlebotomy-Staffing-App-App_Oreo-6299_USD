@@ -51,7 +51,7 @@ class Job(models.Model):
     location = models.TextField()
     city = models.CharField(max_length=100, null=True, blank=True)
     shift_duration = models.IntegerField(default=0)
-    shift_date = models.DateField() 
+    shift_date = models.DateField()
     shift_start = models.TimeField()
     shift_end = models.TimeField()
     pay_type = models.CharField(max_length=50, choices=PAY_TYPE_CHOICES, default=HOURLY)
@@ -68,8 +68,7 @@ class Job(models.Model):
             year = timezone.now().year
             year_suffix = str(year)[-2:]
             prefix = f"JB-{year_suffix}-"
-            
-            # Query for the highest existing ID with this prefix to get the next sequential number
+
             last_job = Job.objects.filter(id__startswith=prefix).order_by('-id').first()
             if last_job:
                 try:
@@ -83,11 +82,8 @@ class Job(models.Model):
                     next_num = 1
             else:
                 next_num = 1
-            
             self.id = f"{prefix}{next_num:06d}"
-            
         super().save(*args, **kwargs)
-
     def __str__(self):
         return f"{self.id} - {self.title}"
 

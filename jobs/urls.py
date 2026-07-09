@@ -7,5 +7,10 @@ urlpatterns = [
     path('client/list/', views.JobListForClient.as_view(), name='client-job-list'),
     path('client/templates/', views.JobTemplateListForClient.as_view(), name='client-job-templates'),
     path('client/templates/<int:pk>/', views.JobTemplateDetailView.as_view(), name='client-job-template-detail'),
-
+    
+    # Phlebotomist Endpoints
+    # path('phlebotomist/jobs/', views.PhlebotomistJobListView.as_view(), name='phlebotomist-job-list'),
+    # path('phlebotomist/jobs/<str:pk>/', views.PhlebotomistJobDetailView.as_view(), name='phlebotomist-job-detail'),
+    path('phlebotomist/jobs/<str:job_id>/apply/', views.PhlebotomistJobApplyView.as_view(), name='phlebotomist-job-apply'),
+    # path('phlebotomist/jobs/<str:job_id>/cancel/', views.PhlebotomistJobCancelView.as_view(), name='phlebotomist-job-cancel'),
 ]
