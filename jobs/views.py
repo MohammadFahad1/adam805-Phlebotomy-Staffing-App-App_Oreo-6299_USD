@@ -856,8 +856,6 @@ class PhlebotomistAppliedJobsAPIView(NewAPIView):
             })
 
         response = AutoPaginatedResponse(data, request=request)
-        if isinstance(response.data, dict) and 'results' in response.data:
-            response.data['data'] = response.data['results']
         return response
 
 class PhlebotomistJobApplyView(NewAPIView):
