@@ -1316,20 +1316,259 @@ class UserRatingsReviewsAPIView(NewAPIView):
         }
         return Response(data, status=status.HTTP_200_OK)
 
-
 class ClientRatingsReviewsAPIView(UserRatingsReviewsAPIView):
     permission_classes = [IsApprovedClient]
 
     @swagger_auto_schema(tags=['App (Client) - Home Section'])
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        """
+        **Get Client Ratings and Reviews**\n
 
+        Retrieve a list of ratings and reviews for the authenticated client user.
+        
+        Example Response:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "average_rating": 4.5,
+                "total_reviews_count": 2,
+                "reviews": [
+                    {
+                        "id": 2,
+                        "reviewer_name": "John Doe",
+                        "reviewer_profile_picture": "https://example.com/media/phlebotomist/profile.jpg",
+                        "rating": 4,
+                        "comment": "Good service.",
+                        "created_at": "3 hours ago"
+                    },
+                    {
+                        "id": 1,
+                        "reviewer_name": "Jane Smith",
+                        "reviewer_profile_picture": "https://example.com/media/phlebotomist/profile2.jpg",
+                        "rating": 5,
+                        "comment": "Excellent phlebotomist!",
+                        "created_at": "5 hours ago"
+                    }
+                ]
+            },
+            "message": "Ratings and reviews retrieved successfully."
+        }
+        ```
+
+        Error Responses:
+        - 401 Unauthorized: If the user is not authenticated.
+        """
+        return super().get(request, *args, **kwargs)
 
 class PhlebotomistRatingsReviewsAPIView(UserRatingsReviewsAPIView):
     permission_classes = [IsApprovedPhlebotomist]
 
     @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
     def get(self, request, *args, **kwargs):
+        """
+        **Get Phlebotomist Ratings and Reviews**\n
+
+        Retrieve a list of ratings and reviews for the authenticated phlebotomist user.
+        
+        Example Response:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "average_rating": 4.5,
+                "total_reviews_count": 2,
+                "reviews": [
+                    {
+                        "id": 2,
+                        "reviewer_name": "John Doe",
+                        "reviewer_profile_picture": "https://example.com/media/client/profile.jpg",
+                        "rating": 4,
+                        "comment": "Good service.",
+                        "created_at": "3 hours ago"
+                    },
+                    {
+                        "id": 1,
+                        "reviewer_name": "Jane Smith",
+                        "reviewer_profile_picture": "https://example.com/media/client/profile2.jpg",
+                        "rating": 5,
+                        "comment": "Excellent client!",
+                        "created_at": "5 hours ago"
+                    }
+                ]
+            },
+            "message": "Ratings and reviews retrieved successfully."
+        }
+        ```
+
+        Error Responses:
+        - 401 Unauthorized: If the user is not authenticated.
+        """
         return super().get(request, *args, **kwargs)
 
+class ReportUserAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EmptySerializer
+    http_method_names = ['get', 'post']
 
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the user to get details for", type=openapi.TYPE_INTEGER, required=True)
+        ],
+        tags=['App (Common) - Reporting']
+    )
+    def get(self, request, *args, **kwargs):
+        from authentication.models import User
+        from communication.models import Review
+        from django.db.models import Avg
+
+        user_id = request.query_params.get('user_id') or request.query_params.get('reported_user_id')
+        if not user_id:
+            return Response({
+                "success": False,
+                "message": "User ID is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "User does not exist."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Calculate rating
+        reviews = Review.objects.filter(reviewed=user)
+        avg = reviews.aggregate(Avg('rating'))['rating__avg']
+        rating = round(avg, 1) if avg is not None else 5.0
+        reviews_count = reviews.count()
+
+        # Subtitle
+        if user.role == 'phlebotomist':
+            try:
+                from authentication.models import Phlebotomist
+                profile = Phlebotomist.objects.get(user=user)
+                specialty = profile.get_specialty_display() if hasattr(profile, 'get_specialty_display') else (profile.specialty or "Certified Phlebotomist")
+                exp = f"{profile.years_of_experience} years exp" if profile.years_of_experience else "No exp"
+                subtitle = f"{specialty} • {exp}"
+            except Exception:
+                subtitle = "Certified Phlebotomist"
+        else:
+            try:
+                from authentication.models import Client
+                profile = Client.objects.get(client=user)
+                business_name = profile.business_name or "Client"
+                business_type = profile.get_business_type_display() if hasattr(profile, 'get_business_type_display') else (profile.business_type or "Healthcare")
+                subtitle = f"{business_name} • {business_type}"
+            except Exception:
+                subtitle = "Client"
+
+        avatar_url = request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+
+        data = {
+            "success": True,
+            "data": {
+                "id": user.id,
+                "full_name": user.full_name,
+                "avatar": avatar_url,
+                "rating": rating,
+                "reviews_count": reviews_count,
+                "distance": "2.3 miles away",
+                "subtitle": subtitle
+            },
+            "message": "User detail retrieved successfully."
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        request_body=EmptySerializer,
+        tags=['App (Common) - Reporting']
+    )
+    def post(self, request, *args, **kwargs):
+        from communication.models import Report
+        from authentication.models import User
+        from jobs.models import Job
+
+        reported_user_id = request.data.get('reported_user_id') or request.data.get('user_id')
+        reason = request.data.get('reason')
+        additional_details = request.data.get('additional_details', '')
+        job_id = request.data.get('job_id')
+
+        if not reported_user_id:
+            return Response({
+                "success": False,
+                "message": "Reported user ID is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not reason:
+            return Response({
+                "success": False,
+                "message": "Reason is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Normalize reason to match REASON_CHOICES keys
+        reason_map = {
+            'inappropriate language': Report.INAPPROPRIATE_LANGUAGE,
+            'harassment': Report.HARASSMENT,
+            'spam': Report.SPAM,
+            'fake profile': Report.FAKE_PROFILE,
+            'other': Report.OTHER,
+            'inappropriate_language': Report.INAPPROPRIATE_LANGUAGE,
+            'fake_profile': Report.FAKE_PROFILE
+        }
+        normalized_reason = reason_map.get(reason.lower().strip(), reason)
+
+        # Validate reason
+        valid_reasons = [choice[0] for choice in Report.REASON_CHOICES]
+        if normalized_reason not in valid_reasons:
+            return Response({
+                "success": False,
+                "message": f"Invalid reason. Choose from: {', '.join(valid_reasons)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            reported_user = User.objects.get(id=reported_user_id)
+        except User.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Reported user does not exist."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if reported_user == request.user:
+            return Response({
+                "success": False,
+                "message": "You cannot report yourself."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        job = None
+        if job_id:
+            try:
+                job = Job.objects.get(id=job_id)
+            except Job.DoesNotExist:
+                return Response({
+                    "success": False,
+                    "message": "Job does not exist."
+                }, status=status.HTTP_404_NOT_FOUND)
+
+        report = Report.objects.create(
+            reporter=request.user,
+            reported_user=reported_user,
+            job=job,
+            reason=normalized_reason,
+            additional_details=additional_details,
+            status=Report.PENDING
+        )
+
+        return Response({
+            "success": True,
+            "message": "Report submitted successfully.",
+            "data": {
+                "id": report.id,
+                "reporter_id": report.reporter.id,
+                "reported_user_id": report.reported_user.id,
+                "job_id": report.job.id if report.job else None,
+                "reason": report.reason,
+                "additional_details": report.additional_details,
+                "status": report.status
+            }
+        }, status=status.HTTP_201_CREATED)

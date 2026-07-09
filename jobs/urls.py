@@ -17,6 +17,6 @@ urlpatterns = [
     path('phlebotomist/jobs/<str:job_id>/apply/', views.PhlebotomistJobApplyView.as_view(), name='phlebotomist-job-apply'),
     path('phlebotomist/jobs/<str:job_id>/accept/', views.PhlebotomistAcceptJobsAPIView.as_view(), name='phlebotomist-accept-job'),
     path('phlebotomist/home/ratings-reviews/', views.PhlebotomistRatingsReviewsAPIView.as_view(), name='phlebotomist-ratings-reviews'),
-    
+    path('report-user/', views.ReportUserAPIView.as_view(), name='report-user'),
 ]
 

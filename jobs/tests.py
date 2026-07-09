@@ -1179,6 +1179,110 @@ class UserRatingsReviewsAPIViewTests(APITestCase):
         self.assertEqual(data['data']['reviews'][0]['rating'], 4)
 
 
+class ReportUserAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job
+        from authentication.models import Phlebotomist, Client
+        import datetime
+
+        # Client user
+        self.client_user = User.objects.create_user(
+            email="client_rep@example.com",
+            password="SecurePassword123!",
+            full_name="Client Reporter",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_rep@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Reported",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-888888",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Job
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Station",
+            description="Perform venipuncture.",
+            location="123 ABC Street Mirpur, Dhaka 1216",
+            city="Dhaka",
+            shift_date=datetime.date(2025, 7, 15),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(13, 0),
+            shift_duration=4,
+            pay_type="hourly",
+            pay_rate=25.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        self.report_url = reverse('report-user')
+
+    def test_get_report_user_details_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(self.report_url, {'user_id': self.phleb_user.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['full_name'], "Phleb Reported")
+        self.assertEqual(data['data']['subtitle'], "General Phlebotomy • 4 years exp")
+
+    def test_post_report_user_success_with_job(self):
+        self.client.force_authenticate(user=self.client_user)
+        payload = {
+            "reported_user_id": self.phleb_user.id,
+            "reason": "Harassment",
+            "additional_details": "Sent inappropriate messages",
+            "job_id": self.job.id
+        }
+        response = self.client.post(self.report_url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['message'], "Report submitted successfully.")
+        self.assertEqual(data['data']['reason'], "harassment")
+        self.assertEqual(data['data']['job_id'], self.job.id)
+
+    def test_post_report_user_success_without_job(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        payload = {
+            "reported_user_id": self.client_user.id,
+            "reason": "Spam",
+            "additional_details": "Spamming job inquiries"
+        }
+        response = self.client.post(self.report_url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['job_id'], None)
+        self.assertEqual(data['data']['reason'], "spam")
+
+
+
 
 
 
