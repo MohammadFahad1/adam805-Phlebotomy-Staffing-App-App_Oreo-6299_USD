@@ -482,4 +482,175 @@ class PhlebotomistJobApplyViewTests(APITestCase):
         self.assertEqual(response.data['detail'], "You have already applied to this job.")
 
 
+class PhlebotomistAvailableJobsAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment, JobApplication
+        from authentication.models import Phlebotomist
+        import datetime
+
+        # Create Client user
+        self.client_user = User.objects.create_user(
+            email="client_avail@example.com",
+            password="SecurePassword123!",
+            full_name="Client Available",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_avail@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Avail",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-888888",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # 1. Job with status approved and no assignment (should be available)
+        self.j1 = Job.objects.create(
+            client=self.client_user,
+            title="Blood draw Station",
+            description="Regular blood draw service.",
+            location="123 Main Street, New York",
+            city="New York",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(23, 0), # Night shift
+            shift_end=datetime.time(7, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # 2. Job with status open and pending assignment (should be available)
+        self.j2 = Job.objects.create(
+            client=self.client_user,
+            title="ICU Nurse",
+            description="ICU Nurse Shift.",
+            location="456 Broadway, New York",
+            city="New York",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.OPEN,
+            job_type=Job.FULL_DAY
+        )
+        # Create PENDING assignment
+        JobAssignment.objects.create(
+            job=self.j2,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status=JobAssignment.PENDING
+        )
+
+        # 3. Job with active assignment (should NOT be available)
+        self.j3 = Job.objects.create(
+            client=self.client_user,
+            title="Physical Therapist",
+            description="Physical Therapist Needed.",
+            location="789 Broadway",
+            city="New York",
+            shift_date=datetime.date(2026, 9, 20),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.OPEN,
+            job_type=Job.URGENT
+        )
+        JobAssignment.objects.create(
+            job=self.j3,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status=JobAssignment.ACTIVE
+        )
+
+        self.list_url = reverse('phlebotomist-available-jobs')
+
+    def test_get_available_jobs_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Expect only j1 and j2 to be available (j3 has active assignment)
+        results = response.data['results']
+        self.assertEqual(len(results), 2)
+        
+        # Verify structure
+        j1_res = next(x for x in results if x['id'] == self.j1.id)
+        self.assertEqual(j1_res['title'], "Blood draw Station")
+        self.assertEqual(j1_res['pay_rate'], "$30.00/hr")
+        self.assertEqual(j1_res['distance'], "2.3 miles away")
+        self.assertEqual(j1_res['shift_time'], "11:00 PM - 7:00 AM")
+        self.assertEqual(j1_res['job_type'], "Urgent")
+        self.assertEqual(j1_res['action_status'], "Apply")
+        self.assertEqual(j1_res['applied'], False)
+
+    def test_get_available_jobs_applied_status(self):
+        # Create an application for j1 by self.phleb_user
+        from jobs.models import JobApplication
+        JobApplication.objects.create(
+            job=self.j1,
+            phlebotomist=self.phleb_user,
+            status=JobApplication.PENDING
+        )
+
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+        j1_res = next(x for x in results if x['id'] == self.j1.id)
+        self.assertEqual(j1_res['applied'], True)
+        self.assertEqual(j1_res['action_status'], "Applied")
+
+    def test_filter_tabs(self):
+        self.client.force_authenticate(user=self.phleb_user)
+
+        # 1. Night shift filter (should return j1 only)
+        response = self.client.get(self.list_url, {'filter': 'Night Shift'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['id'], self.j1.id)
+
+        # 2. Today filter (should return 0 because shift_date is 2026-09-20, not today)
+        response = self.client.get(self.list_url, {'filter': 'today'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 0)
+
+    def test_search_jobs(self):
+        self.client.force_authenticate(user=self.phleb_user)
+
+        # Search match for ICU
+        response = self.client.get(self.list_url, {'search': 'ICU'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['id'], self.j2.id)
+
+
+
 

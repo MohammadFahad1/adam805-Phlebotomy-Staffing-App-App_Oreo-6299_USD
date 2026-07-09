@@ -542,16 +542,168 @@ class JobTemplateDetailView(NewAPIView):
 
 
 # Phlebotomist Endpoints
+class PhlebotomistAvailableJobsAPIView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedPhlebotomist]
+    http_method_names = ['get']
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
+    def get(self, request):
+        """
+        **Get Available Jobs for Phlebotomist**\n
+        Retrieve a list of open/approved jobs that the phlebotomist can apply to.
+        """
+        from django.db.models import Q
+        from jobs.models import Job, JobAssignment, JobApplication
+
+        # 1. Fetch job ids with assignments that are ACTIVE, COMPLETED, or DISPUTED
+        assigned_job_ids = JobAssignment.objects.filter(
+            status__in=[JobAssignment.ACTIVE, JobAssignment.COMPLETED, JobAssignment.DISPUTED]
+        ).values_list('job_id', flat=True)
+
+        # 2. Get approved/open jobs not in that list
+        queryset = Job.objects.filter(
+            status__in=[Job.APPROVED, Job.OPEN]
+        ).exclude(
+            id__in=assigned_job_ids
+        )
+
+        # 3. Filter by tab
+        tab = request.query_params.get('filter', 'all').lower().replace(' ', '_')
+        if 'filter' in request.GET:
+            qd = request.GET.copy()
+            qd.pop('filter', None)
+            request._request.GET = qd
+            if hasattr(request, '_query_params'):
+                try:
+                    delattr(request, '_query_params')
+                except AttributeError:
+                    pass
+
+        if tab == 'near_me':
+            try:
+                profile = request.user.phlebotomist_profile
+                if profile.service_area:
+                    queryset = queryset.filter(
+                        Q(city__icontains=profile.service_area) | 
+                        Q(location__icontains=profile.service_area)
+                    )
+            except Exception:
+                pass
+        elif tab == 'night_shift':
+            import datetime
+            queryset = queryset.filter(
+                Q(shift_start__gte=datetime.time(18, 0)) |
+                Q(shift_start__lte=datetime.time(6, 0))
+            )
+        elif tab == 'today':
+            from django.utils import timezone
+            queryset = queryset.filter(shift_date=timezone.localdate())
+
+        # 4. Filter by search
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) |
+                Q(location__icontains=search_query) |
+                Q(city__icontains=search_query) |
+                Q(professional_type__icontains=search_query)
+            )
+
+        queryset = queryset.order_by('-created_at')
+
+        # 5. Fetch applied jobs for the requesting user
+        applied_job_ids = set(
+            JobApplication.objects.filter(phlebotomist=request.user)
+            .values_list('job_id', flat=True)
+        )
+
+        data = []
+        for job in queryset:
+            try:
+                business_name = job.client.client_profile.business_name
+            except Exception:
+                business_name = job.client.full_name or "Unknown Client"
+
+            # Format shift times
+            start_str = job.shift_start.strftime("%I:%M %p").lstrip('0') if job.shift_start else ""
+            end_str = job.shift_end.strftime("%I:%M %p").lstrip('0') if job.shift_end else ""
+            shift_time = f"{start_str} - {end_str}" if start_str and end_str else ""
+
+            # Format shift duration
+            shift_dur = f"{job.shift_duration} hour{'s' if job.shift_duration != 1 else ''}"
+
+            # Format shift date (e.g. Aug 15, 2025)
+            shift_date_str = job.shift_date.strftime("%b %d, %Y") if job.shift_date else ""
+
+            # Format pay rate
+            pay_rate_formatted = f"${job.pay_rate}/{'hr' if job.pay_type == 'hourly' else 'flat'}"
+
+            # Format professional type display
+            if job.professional_type == 'CP':
+                prof_display = 'Phlebotomist'
+            elif job.professional_type == 'RN':
+                prof_display = 'RN'
+            elif job.professional_type == 'LPN':
+                prof_display = 'LPN'
+            else:
+                prof_display = job.get_professional_type_display() if hasattr(job, 'get_professional_type_display') else job.professional_type
+
+            job_type_display = job.get_job_type_display() if hasattr(job, 'get_job_type_display') else job.job_type
+
+            is_applied = job.id in applied_job_ids
+            action_status = "Applied" if is_applied else "Apply"
+
+            data.append({
+                "id": job.id,
+                "title": job.title,
+                "business_name": business_name,
+                "professional_type": prof_display,
+                "distance": "2.3 miles away", # Mock distance matching design specs
+                "shift_time": shift_time,
+                "shift_duration": shift_dur,
+                "shift_date": shift_date_str,
+                "pay_rate": pay_rate_formatted,
+                "location": job.location,
+                "city": job.city,
+                "job_type": job_type_display,
+                "description": job.description,
+                "status": job.status,
+                "applied": is_applied,
+                "action_status": action_status,
+                "created_at": job.created_at.strftime("%Y-%m-%d %H:%M:%S") if job.created_at else None
+            })
+
+        response = AutoPaginatedResponse(data, request=request)
+        if isinstance(response.data, dict) and 'results' in response.data:
+            response.data['data'] = response.data['results']
+        return response
+
 class PhlebotomistJobApplyView(NewAPIView):
     serializer_class = EmptySerializer
     permission_classes = [IsApprovedPhlebotomist]
     http_method_names = ['post']
 
-    @swagger_auto_schema(tags=['App (Phlebotomist) - Job'])
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
     def post(self, request, job_id):
         """
-        **Apply for a Job - Approved Phlebotomists Only**\n
+        **Apply for a Job - Phlebotomist**\n
         Apply to an open/approved job if no scheduling conflict exists and no phlebotomist is assigned.
+
+        ### Path Parameters:
+        - `job_id` (string, required): The ID of the job to apply for.
+
+        ### Example Response:
+        ```json
+        {
+            "detail": "Job application submitted successfully."
+        }
+        ```
+
+        ### Error Responses:
+        - `400 Bad Request`: If the job is not in a state where it can be applied to (e.g., draft, pending, in progress, completed, cancelled).
+        - `400 Bad Request`: If a phlebotomist is already assigned to this job.
+        - `400 Bad Request`: If the phlebotomist has a schedule conflict with another active job.
+        - `400 Bad Request`: If the phlebotomist has already applied to this job.
         """
         from jobs.models import Job, JobAssignment, JobApplication
 
@@ -607,3 +759,5 @@ class PhlebotomistJobApplyView(NewAPIView):
             {"detail": "Job application submitted successfully."},
             status=status.HTTP_201_CREATED
         )
+
+
