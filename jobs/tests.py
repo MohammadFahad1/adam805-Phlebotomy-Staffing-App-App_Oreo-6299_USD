@@ -749,6 +749,106 @@ class PhlebotomistAppliedJobsAPIViewTests(APITestCase):
         self.assertEqual(results[0]['action_status'], "Applied")
 
 
+class PhlebotomistJobDetailsAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job
+        from authentication.models import Phlebotomist, Client
+        import datetime
+
+        # Create Client user
+        self.client_user = User.objects.create_user(
+            email="client_details@example.com",
+            password="SecurePassword123!",
+            full_name="Dr. Ratul Hassan",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Community Health Center",
+            business_type=Client.HEALTHCARE,
+            business_address_street="123 ABC Street Mirpur",
+            business_address_city="Dhaka",
+            business_address_state="Dhaka Division",
+            business_address_zip="1216",
+            contact_person_name="Dr. Ratul Hassan",
+            business_phone="(123) 123-4567",
+            business_license_number="LIC-11111",
+            business_description="Community clinic.",
+            hourly_pay_rate=25.00,
+            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
+            work_preference=Client.FULL_TIME
+        )
+
+        # Create Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_details@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Details",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-777777",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Create Job
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Station",
+            description="Perform venipuncture and capillary punctures.",
+            location="123 ABC Street Mirpur, Dhaka 1216",
+            city="Dhaka",
+            shift_date=datetime.date(2025, 7, 15),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(13, 0),
+            shift_duration=4,
+            pay_type="hourly",
+            pay_rate=25.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        self.detail_url = reverse('phlebotomist-job-detail', kwargs={'job_id': self.job.id})
+
+    def test_get_job_details_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['title'], "Blood Draw Station")
+        self.assertEqual(data['client_name'], "Dr. Ratul Hassan")
+        self.assertEqual(data['client_address'], "123 ABC Street Mirpur, Dhaka, Dhaka Division 1216")
+        self.assertEqual(data['client_business_name'], "(Community Health Center)")
+        self.assertEqual(data['client_phone'], "(123) 123-4567")
+        self.assertEqual(data['shift_date'], "July 15, 2025")
+        self.assertEqual(data['shift_time'], "9:00 AM - 1:00 PM (4 hours)")
+        self.assertEqual(data['formatted_job_id'], f"#{self.job.id}")
+        self.assertEqual(data['hourly_rate'], "$25.00")
+        self.assertEqual(data['total_hours'], "4.0 hrs")
+        self.assertEqual(data['subtotal'], "$100.00")
+        self.assertEqual(data['service_fee'], "-$5.00")
+        self.assertEqual(data['tax_withholding'], "-$15.00")
+        self.assertEqual(data['total_earnings'], "$80.00")
+
+
+
 
 
 

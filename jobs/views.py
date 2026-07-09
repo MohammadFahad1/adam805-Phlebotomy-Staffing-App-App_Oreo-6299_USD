@@ -940,4 +940,86 @@ class PhlebotomistJobApplyView(NewAPIView):
             status=status.HTTP_201_CREATED
         )
 
+class PhlebotomistJobDetailsAPIView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedPhlebotomist]
+    http_method_names = ['get']
 
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
+    def get(self, request, job_id):
+        """
+        **Get Job Details for Phlebotomist**\n
+        Retrieve a detailed view of a job for a phlebotomist.
+        """
+        from jobs.models import Job
+        from django.shortcuts import get_object_or_404
+
+        job = get_object_or_404(Job, id=job_id)
+
+        try:
+            client_profile = job.client.client_profile
+            client_name = client_profile.contact_person_name or job.client.full_name or "Unknown Client"
+            client_address = f"{client_profile.business_address_street}, {client_profile.business_address_city}, {client_profile.business_address_state} {client_profile.business_address_zip}".strip(", ")
+            client_business_name = f"({client_profile.business_name})" if client_profile.business_name else ""
+            client_phone = client_profile.business_phone or job.client.phone_number or ""
+        except Exception:
+            client_name = job.client.full_name or "Unknown Client"
+            client_address = job.location or ""
+            client_business_name = ""
+            client_phone = job.client.phone_number or ""
+
+        # Format shift times
+        start_str = job.shift_start.strftime("%I:%M %p").lstrip('0') if job.shift_start else ""
+        end_str = job.shift_end.strftime("%I:%M %p").lstrip('0') if job.shift_end else ""
+        shift_time = f"{start_str} - {end_str} ({job.shift_duration} hour{'s' if job.shift_duration != 1 else ''})"
+
+        # Calculate Payment Breakdown
+        subtotal = float(job.pay_rate) * float(job.shift_duration)
+        service_fee = subtotal * 0.05
+        tax_withholding = subtotal * 0.15
+        total_earnings = subtotal - service_fee - tax_withholding
+
+        data = {
+            "success": True,
+            "id": job.id,
+            "title": job.title,
+            "description": job.description,
+            "status": job.status,
+            "client_name": client_name,
+            "client_address": client_address,
+            "client_business_name": client_business_name,
+            "client_phone": client_phone,
+            "shift_date": job.shift_date.strftime("%B %d, %Y") if job.shift_date else "",
+            "shift_time": shift_time,
+            "formatted_job_id": f"#{job.id}",
+            "hourly_rate": f"${job.pay_rate:.2f}",
+            "total_hours": f"{float(job.shift_duration):.1f} hrs",
+            "subtotal": f"${subtotal:.2f}",
+            "service_fee": f"-${service_fee:.2f}",
+            "tax_withholding": f"-${tax_withholding:.2f}",
+            "total_earnings": f"${total_earnings:.2f}",
+            "client_info": {
+                "name": client_name,
+                "role": "Client",
+                "address": client_address,
+                "business_name": client_business_name,
+                "phone": client_phone
+            },
+            "job_details": {
+                "title": job.title,
+                "shift_date": job.shift_date.strftime("%B %d, %Y") if job.shift_date else "",
+                "shift_time": shift_time,
+                "formatted_job_id": f"#{job.id}",
+                "description": job.description
+            },
+            "payment_breakdown": {
+                "hourly_rate": f"${job.pay_rate:.2f}",
+                "total_hours": f"{float(job.shift_duration):.1f} hrs",
+                "subtotal": f"${subtotal:.2f}",
+                "service_fee": f"-${service_fee:.2f}",
+                "tax_withholding": f"-${tax_withholding:.2f}",
+                "total_earnings": f"${total_earnings:.2f}"
+            }
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
