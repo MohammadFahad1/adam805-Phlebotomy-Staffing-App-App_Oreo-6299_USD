@@ -151,3 +151,102 @@ class AssignPhlebotomistAPITests(APITestCase):
         
         response = self.client.patch(url, {'user_id': self.phlebotomist_user.id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class DisputeManagementStatisticsAPITests(APITestCase):
+
+    def setUp(self):
+        # Create users
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="clientpassword",
+            full_name="Client User",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.phlebotomist_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+
+    def test_statistics_when_db_empty(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-statistics')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify statistics return 0 when database has no reports
+        self.assertEqual(response.data['pending_issues'], 0)
+        self.assertEqual(response.data['under_review'], 0)
+        self.assertEqual(response.data['resolved_today'], 0)
+
+    def test_statistics_actual_db_counts(self):
+        from communication.models import Report
+        from django.utils import timezone
+        
+        # Create some reports
+        # Pending
+        for _ in range(3):
+            Report.objects.create(
+                reporter=self.client_user,
+                reported_user=self.phlebotomist_user,
+                reason=Report.HARASSMENT,
+                status=Report.PENDING
+            )
+        # Reviewed
+        for _ in range(2):
+            Report.objects.create(
+                reporter=self.client_user,
+                reported_user=self.phlebotomist_user,
+                reason=Report.HARASSMENT,
+                status=Report.REVIEWED
+            )
+        # Resolved
+        for _ in range(4):
+            Report.objects.create(
+                reporter=self.client_user,
+                reported_user=self.phlebotomist_user,
+                reason=Report.HARASSMENT,
+                status=Report.RESOLVED,
+                resolved_at=timezone.now()
+            )
+
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dispute-statistics')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify database counts are returned instead of fallbacks
+        self.assertEqual(response.data['pending_issues'], 3)
+        self.assertEqual(response.data['under_review'], 2)
+        self.assertEqual(response.data['resolved_today'], 4)
+
+    def test_statistics_permissions_denied_for_non_admin(self):
+        # Unauthenticated
+        url = reverse('dispute-statistics')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Non-admin
+        self.client.force_authenticate(user=self.phlebotomist_user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+

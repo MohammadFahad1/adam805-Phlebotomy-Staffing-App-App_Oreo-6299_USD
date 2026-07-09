@@ -5,6 +5,7 @@ from dashboard import serializers
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from authentication.serializers import EmptySerializer
 from authentication.models import Client, ClientDocument, Phlebotomist, Phlebotomist_document
 from django.contrib.auth import get_user_model
@@ -1562,5 +1563,62 @@ class AssignPhlebotomistAPIView(NewAPIView):
             return Response({"detail": "Phlebotomist assigned successfully."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Dispute management views
+class DisputeManagementStatisticsAPIView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['Dashboard - Dispute Management'])
+    def get(self, request):
+        """
+        **Dispute Management Statistics - Admin Only**\n
+        Retrieve dispute management statistics count including pending issues, under review, and resolved today.
+
+        **Response Example:**
+        ```json
+        {
+            "pending_issues": 12,
+            "under_review": 5,
+            "resolved_today": 8,
+            "pending_issues_count": 12,
+            "under_review_count": 5,
+            "resolved_today_count": 8,
+            "pendingIssues": 12,
+            "underReview": 5,
+            "resolvedToday": 8
+        }
+        ```
+        """
+        from communication.models import Report
+        from django.utils import timezone
+
+        db_pending = Report.objects.filter(status=Report.PENDING).count() or 0
+        db_reviewed = Report.objects.filter(status=Report.REVIEWED).count() or 0
+        
+        today = timezone.now().date()
+        db_resolved_today = Report.objects.filter(
+            status=Report.RESOLVED,
+            resolved_at__date=today
+        ).count() or 0
+
+        pending_count = db_pending
+        reviewed_count = db_reviewed
+        resolved_today_count = db_resolved_today
+
+        data = {
+            "pending_issues": pending_count,
+            "under_review": reviewed_count,
+            "resolved_today": resolved_today_count,
+            "pending_issues_count": pending_count,
+            "under_review_count": reviewed_count,
+            "resolved_today_count": resolved_today_count,
+            "pendingIssues": pending_count,
+            "underReview": reviewed_count,
+            "resolvedToday": resolved_today_count
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 
