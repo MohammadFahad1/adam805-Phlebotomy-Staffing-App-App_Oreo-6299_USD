@@ -1655,7 +1655,7 @@ class PhlebotomistHomeAPIView(APIView):
         manual_parameters=[
             openapi.Parameter('date_filter', openapi.IN_QUERY, description="Filter metrics by: today, weekly, monthly, all", type=openapi.TYPE_STRING, required=False)
         ],
-        tags=['Phlebotomist - Home']
+        tags=['App (Phlebotomist) - Home Section']
     )
     def get(self, request, *args, **kwargs):
         from authentication.models import User, Phlebotomist
