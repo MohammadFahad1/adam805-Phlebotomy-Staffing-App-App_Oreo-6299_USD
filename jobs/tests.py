@@ -866,6 +866,109 @@ class PhlebotomistJobDetailsAPIViewTests(APITestCase):
         self.assertEqual(data['application_status'], 'pending')
 
 
+class PhlebotomistPendingJobListAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment
+        from authentication.models import Phlebotomist
+        import datetime
+
+        # Create Client user
+        self.client_user = User.objects.create_user(
+            email="client_pending@example.com",
+            password="SecurePassword123!",
+            full_name="Client Pending",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_pending@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Pending",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="LIC-888888",
+            license_expiry_date=datetime.date(2028, 12, 31),
+            years_of_experience=4,
+            specialty=Phlebotomist.GENERAL_PHLEBOTOMY,
+            work_preference=Phlebotomist.FULL_TIME,
+            service_area="New York",
+            approved=True
+        )
+
+        # Create 2 jobs
+        self.j1 = Job.objects.create(
+            client=self.client_user,
+            title="Massage Therapist",
+            description="Massage session.",
+            location="123 Main St, Anytown, USA",
+            city="Anytown",
+            shift_date=datetime.date(2025, 8, 14),
+            shift_start=datetime.time(10, 0),
+            shift_end=datetime.time(18, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        self.j2 = Job.objects.create(
+            client=self.client_user,
+            title="Yoga Instructor",
+            description="Yoga session.",
+            location="456 Oak Ave, Otherville, USA",
+            city="Otherville",
+            shift_date=datetime.date(2025, 8, 15),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # Create a pending assignment for j1
+        self.assignment = JobAssignment.objects.create(
+            job=self.j1,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status=JobAssignment.PENDING
+        )
+
+        self.pending_url = reverse('phlebotomist-pending-jobs')
+
+    def test_get_pending_jobs_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.pending_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['message'], "Pending jobs list retrieved successfully.")
+        
+        # Expect only j1 to be returned since it is assigned to this phlebotomist
+        jobs = data['data']['jobs']
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0]['id'], self.j1.id)
+        self.assertEqual(jobs[0]['title'], "Massage Therapist")
+        self.assertEqual(jobs[0]['applied'], False)
+        self.assertEqual(jobs[0]['accepted'], False)
+
+
+
 
 
 

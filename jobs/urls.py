@@ -11,6 +11,7 @@ urlpatterns = [
     # Phlebotomist Endpoints
     path('phlebotomist/jobs/', views.PhlebotomistAvailableJobsAPIView.as_view(), name='phlebotomist-available-jobs'),
     path('phlebotomist/applied/', views.PhlebotomistAppliedJobsAPIView.as_view(), name='phlebotomist-applied-jobs'),
+    path('phlebotomist/jobs/pending/', views.PhlebotomistPendingJobListAPIView.as_view(), name='phlebotomist-pending-jobs'),
     path('phlebotomist/jobs/<str:job_id>/', views.PhlebotomistJobDetailsAPIView.as_view(), name='phlebotomist-job-detail'),
     path('phlebotomist/jobs/<str:job_id>/apply/', views.PhlebotomistJobApplyView.as_view(), name='phlebotomist-job-apply'),
 ]

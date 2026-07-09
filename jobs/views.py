@@ -15,6 +15,7 @@ from django.db.models import Q
 from rest_framework.views import APIView
 from jobs.models import Job, JobTemplate
 from jobs.serializers import JobCreateSerializer
+from datetime import datetime
 
 User = get_user_model()
 
@@ -1085,3 +1086,84 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
             }
         }
         return Response(data, status=status.HTTP_200_OK)
+
+class PhlebotomistPendingJobListAPIView(NewAPIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsApprovedPhlebotomist]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=['App (Phlebotomist) - Home Section'])
+    def get(self, request):
+        """
+        **Get Pending Jobs for Phlebotomist**\n
+        Retrieve a list of jobs that are pending assignment to a phlebotomist.
+
+        Example Response:
+        ```json
+        {
+        "success": true,
+        "data": {
+            "jobs": [
+            {
+                "id": "JB-26-000002",
+                "title": "Massage Therapist",
+                "location": "123 Main St, Anytown, USA",
+                "shift_date": "August 14, 2025",
+                "shift_time": "10:00 AM - 6:00 PM",
+                "formatted_job_id": "#JB-26-000002",
+                "applied": false,
+                "accepted": false
+            }
+            ]
+        },
+        "message": "Pending jobs list retrieved successfully."
+        }
+        ```
+
+        Error Responses:
+        - 403 Forbidden: If the user is not authenticated or not an approved phlebotomist.
+        """
+        from jobs.models import Job, JobApplication, JobAssignment
+        
+        # Get all job assignments for the authenticated phlebotomist with PENDING status
+        assignments = JobAssignment.objects.filter(
+            phlebotomist=request.user,
+            status=JobAssignment.PENDING
+        ).select_related('job').order_by('job__shift_date')
+
+        jobs_list = []
+        for assignment in assignments:
+            job = assignment.job
+            
+            # Check if phlebotomist already applied
+            applied = JobApplication.objects.filter(job=job, phlebotomist=request.user).exists()
+            accepted = assignment.signed_by_phlebotomist
+            
+            # Format shift times
+            start_str = job.shift_start.strftime("%I:%M %p").lstrip('0') if job.shift_start else ""
+            end_str = job.shift_end.strftime("%I:%M %p").lstrip('0') if job.shift_end else ""
+            shift_time = f"{start_str} - {end_str}" if start_str and end_str else ""
+            
+            jobs_list.append({
+                "id": job.id,
+                "title": job.title,
+                "location": job.location,
+                "shift_date": job.shift_date.strftime("%B %d, %Y") if job.shift_date else "",
+                "shift_time": shift_time,
+                "formatted_job_id": f"#{job.id}",
+                "applied": applied,
+                "accepted": accepted
+            })
+        
+        data = {
+            "success": True,
+            "data": {
+                "jobs": jobs_list
+            },
+            "message": "Pending jobs list retrieved successfully."
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
+
+
