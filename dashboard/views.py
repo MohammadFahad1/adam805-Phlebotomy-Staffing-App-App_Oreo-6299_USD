@@ -1222,7 +1222,7 @@ class JobManagementListView(NewAPIView):
 
         ### Query Parameters:
         - `search` (string): Filter by job title or job ID (case-insensitive).
-        - `status` (string): Filter by job status. Choices: `draft`, `pending_approval`, `open`, `in_progress`, `completed`, `cancelled`.
+        - `status` (string): Filter by job status. Choices: `draft`, `pending_approval`, `approved`, `open`, `in_progress`, `completed`, `cancelled`.
         - `date` (string): Filter by shift date in `YYYY-MM-DD` format.
 
         ### Example Response:
@@ -1470,3 +1470,38 @@ class JobManagementDetailView(NewAPIView):
             },
             status=status.HTTP_200_OK
         )
+
+class JobStatusUpdateAPIView(NewAPIView):
+    serializer_class = serializers.JobStatusChoicesSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(tags=["Dashboard - Job Management Page"])
+    def patch(self, request, job_id):
+        """
+        **Update Job Status - Admin Only**\n
+        Update the status of a specific job - Admin Only\n
+        
+        **Parameters:**
+        - **job_id**: The ID of the job to update.
+        
+        **Request Body:**
+        - **status**: The new status for the job. Choices: `draft`, `pending_approval`, `approved`, `open`, `in_progress`, `completed`, `cancelled`.
+        
+        **Response:**
+        - **detail**: Message indicating the result of the operation.
+        
+        **Example Response:**
+        ```json
+        {
+            "detail": "Job status updated successfully."
+        }
+        ```
+        """
+        from jobs.models import Job
+        job = get_object_or_404(Job, id=job_id)
+        job.status = request.data.get('status')
+        job.save()
+        return Response({"detail": "Job status updated successfully."}, status=status.HTTP_200_OK)
+
+

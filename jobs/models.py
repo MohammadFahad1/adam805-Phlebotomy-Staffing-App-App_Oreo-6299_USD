@@ -4,6 +4,7 @@ from django.conf import settings
 class Job(models.Model):
     DRAFT = 'draft'
     PENDING_APPROVAL = 'pending_approval'
+    APPROVED = 'approved'
     OPEN = 'open'
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
@@ -11,6 +12,7 @@ class Job(models.Model):
     STATUS_CHOICES = [
         (DRAFT, 'Draft'),
         (PENDING_APPROVAL, 'Pending Approval'),
+        (APPROVED, 'Approved'),
         (OPEN, 'Open'),
         (IN_PROGRESS, 'In Progress'),
         (COMPLETED, 'Completed'),

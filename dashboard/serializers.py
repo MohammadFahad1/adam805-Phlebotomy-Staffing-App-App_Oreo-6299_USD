@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from authentication.models import Client, ClientDocument, Phlebotomist, Phlebotomist_document
 from django.contrib.auth import get_user_model
+from jobs.models import Job
 
 User = get_user_model()
 
@@ -78,6 +79,9 @@ class DashboardHomeSerializer(serializers.Serializer):
 
 class BooleanSerializer(serializers.Serializer):
     approve = serializers.BooleanField(required=True)
+
+class JobStatusChoicesSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=Job.STATUS_CHOICES, required=True)
 
 
 # ── Nested helpers ────────────────────────────────────────────────────────────
