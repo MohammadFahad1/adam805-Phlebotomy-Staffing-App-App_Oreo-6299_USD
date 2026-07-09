@@ -112,6 +112,15 @@ class CreateAppointmentView(NewAPIView):
             data = dict(request.data)
         data.update(request.FILES)
 
+        # 2. Terms and Consent checks
+        terms_agreement = data.get('terms_agreement') or data.get('terms') or data.get('termsAgreement')
+        consent_communication = data.get('consent_communication') or data.get('consent') or data.get('consentCommunication')
+        
+        if not terms_agreement or str(terms_agreement).lower() == 'false':
+            return Response({'terms_agreement': ['You must agree to the Terms of Service and Privacy Policy.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not consent_communication or str(consent_communication).lower() == 'false':
+            return Response({'consent_communication': ['You must consent to receive appointment confirmations and results.']}, status=status.HTTP_400_BAD_REQUEST)
+
         # 3. Prescription validations (File Size < 5MB and extension in PDF, JPG, JPEG, PNG)
         prescription = request.FILES.get('prescription') or data.get('prescription')
         if prescription and not isinstance(prescription, str):
@@ -295,7 +304,7 @@ class CreateAppointmentView(NewAPIView):
 
 class AppointmentListView(NewAPIView):
     serializer_class = serializers.AppointmentListSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         queryset = Appointment.objects.all()
@@ -305,6 +314,8 @@ class AppointmentListView(NewAPIView):
         # Role-based filtering
         if user.role == User.CLIENT:
             queryset = queryset.none()
+        elif user.role == User.PHLEBOTOMIST:
+            queryset = queryset.filter(jobs__assignment__phlebotomist=user)
         
         # Date filtering
         start_date = self.request.query_params.get('start_date')
@@ -403,7 +414,7 @@ class AppointmentListView(NewAPIView):
 
 class AppointmentDetailView(NewAPIView):
     serializer_class = serializers.AppointmentDetailSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         appointment_id = self.kwargs['pk']
@@ -418,7 +429,12 @@ class AppointmentDetailView(NewAPIView):
             self.permission_denied(self.request, "You don't have access to this appointment.")
         elif user.role == User.PHLEBOTOMIST:
             # Verify the phlebotomist is assigned to this appointment
-            if appointment.phlebotomist != user:
+            from jobs.models import JobAssignment
+            is_assigned = JobAssignment.objects.filter(
+                phlebotomist=user,
+                job__appointment=appointment
+            ).exists()
+            if not is_assigned:
                 self.permission_denied(self.request, "You don't have access to this appointment.")
         
         return appointment

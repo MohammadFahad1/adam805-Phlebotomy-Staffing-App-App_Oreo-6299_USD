@@ -21,9 +21,6 @@ class JobAssignmentInline(admin.StackedInline):
         ('Contract Compliance', {
             'fields': (('signed_by_phlebotomist', 'signed_by_client'), 'contract_url')
         }),
-        ('Execution Windows', {
-            'fields': (('start_time', 'end_time'),)
-        }),
     )
 
 

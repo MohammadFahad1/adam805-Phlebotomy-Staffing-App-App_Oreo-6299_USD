@@ -10,6 +10,7 @@ from authentication.models import Client, ClientDocument, Phlebotomist, Phleboto
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework.views import APIView
+from jobs.models import Job, JobAssignment
 
 User = get_user_model()
 
@@ -1503,5 +1504,63 @@ class JobStatusUpdateAPIView(NewAPIView):
         job.status = request.data.get('status')
         job.save()
         return Response({"detail": "Job status updated successfully."}, status=status.HTTP_200_OK)
+
+class AssignPhlebotomistAPIView(NewAPIView):
+    serializer_class = serializers.UserIdSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['patch']
+
+    @swagger_auto_schema(tags=["Dashboard - Job Management Page"])
+    def patch(self, request, job_id):
+        """
+        **Assign Phlebotomist to Job - Admin Only**\n
+        Assign a phlebotomist to a specific job - Admin Only\n
+        
+        **Parameters:**
+        - **job_id**: The ID of the job to assign the phlebotomist to.
+        
+        **Request Body:**
+        - **user_id**: The ID of the phlebotomist to assign to the job.
+        
+        **Response:**
+        - **detail**: Message indicating the result of the operation.
+        
+        **Example Response:**
+        ```json
+        {
+            "detail": "Phlebotomist assigned successfully."
+        }
+        ```
+        """
+        try:
+            job = get_object_or_404(Job, id=job_id)
+            if job.status == "pending_approval":
+                return Response({"detail": "Job is not approved yet."}, status=status.HTTP_400_BAD_REQUEST)
+            phlebotomist = get_object_or_404(User, id=request.data.get('user_id'), role="phlebotomist")
+            
+            overlapping_assignments = JobAssignment.objects.filter(
+                phlebotomist=phlebotomist,
+                status__in=[JobAssignment.ACTIVE, JobAssignment.PENDING]
+            ).exclude(
+                job__status__in=[Job.COMPLETED, Job.CANCELLED]
+            ).filter(
+                job__shift_date=job.shift_date,
+                job__shift_start__lt=job.shift_end,
+                job__shift_end__gt=job.shift_start
+            ).exclude(job=job)
+
+            if overlapping_assignments.exists():
+                return Response(
+                    {"detail": "Phlebotomist is already scheduled for another active job at this time."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            job.status = Job.IN_PROGRESS
+            job.save()
+            job_assignment = JobAssignment.objects.create(job=job, phlebotomist=phlebotomist, client=job.client)
+            job_assignment.status = JobAssignment.ACTIVE
+            job_assignment.save()
+            return Response({"detail": "Phlebotomist assigned successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 

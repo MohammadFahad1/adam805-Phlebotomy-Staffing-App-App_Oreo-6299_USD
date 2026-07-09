@@ -50,7 +50,7 @@ class Job(models.Model):
     description = models.TextField()
     location = models.TextField()
     city = models.CharField(max_length=100, null=True, blank=True)
-    shift_duration = models.IntegerField(default=0)  # Duration in hours
+    shift_duration = models.IntegerField(default=0)
     shift_date = models.DateField() 
     shift_start = models.TimeField()
     shift_end = models.TimeField()
@@ -131,8 +131,6 @@ class JobAssignment(models.Model):
     signed_by_phlebotomist = models.BooleanField(default=False)
     signed_by_client = models.BooleanField(default=False)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=PENDING)
-    start_time = models.DateTimeField(null=True, blank=True)
-    end_time = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

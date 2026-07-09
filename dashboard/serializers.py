@@ -83,6 +83,8 @@ class BooleanSerializer(serializers.Serializer):
 class JobStatusChoicesSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Job.STATUS_CHOICES, required=True)
 
+class UserIdSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(required=True)
 
 # ── Nested helpers ────────────────────────────────────────────────────────────
 
