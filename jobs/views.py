@@ -1228,6 +1228,36 @@ class UserRatingsReviewsAPIView(NewAPIView):
     http_method_names = ['get']
 
     def get(self, request):
+        """
+        **Get User Ratings and Reviews**\n
+
+        Retrieve a list of ratings and reviews for the authenticated user.
+        
+        Example Response:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "average_rating": 4.0,
+                "total_reviews_count": 1,
+                "reviews": [
+                    {
+                        "id": 1,
+                        "reviewer_name": "Phleb Reviewed",
+                        "reviewer_profile_picture": "https://example.com/media/phlebotomist/profile_picture.jpg",
+                        "rating": 4,
+                        "comment": "Very nice client, on time.",
+                        "created_at": "2 hours ago"
+                    }
+                ]
+            },
+            "message": "Ratings and reviews retrieved successfully."
+        }
+        ```
+
+        Error Responses:
+        - 401 Unauthorized: If the user is not authenticated.
+        """
         from communication.models import Review
         from django.db.models import Avg
         from django.utils import timezone
