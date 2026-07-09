@@ -1419,6 +1419,41 @@ class ReportUserAPIView(APIView):
         tags=['App (Common) - Reporting']
     )
     def get(self, request, *args, **kwargs):
+        """
+        Get user details for the authenticated user.
+        
+        **Request Example**:
+        ```json
+        {
+            "reported_user_id": 1,
+            "reason": "inappropriate language",
+            "additional_details": "This user said inappropriate things to me.",
+            "job_id": 1
+        }
+        ```
+        
+        **Response Example**:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "id": 1,
+                "full_name": "John Doe",
+                "avatar": "https://example.com/media/user/profile.jpg",
+                "rating": 4.5,
+                "reviews_count": 2,
+                "distance": "2.3 miles away",
+                "subtitle": "Certified Phlebotomist"
+            },
+            "message": "User detail retrieved successfully."
+        }
+        ```
+        
+        Error Responses:
+        - 401 Unauthorized: If the user is not authenticated.
+        - 400 Bad Request: If user ID is missing or invalid.
+        - 404 Not Found: If the user does not exist.
+        """
         from authentication.models import User
         from communication.models import Review
         from django.db.models import Avg
@@ -1486,6 +1521,47 @@ class ReportUserAPIView(APIView):
         tags=['App (Common) - Reporting']
     )
     def post(self, request, *args, **kwargs):
+        """
+        Report a user.
+
+        **Request body**"
+        - reported_user_id: integer, required
+        - reason: string, required
+        - additional_details: string, optional
+        - job_id: integer, optional
+        
+        **Request Example**:
+        ```json
+        {
+            "reported_user_id": 1,
+            "reason": "inappropriate language",
+            "additional_details": "This user said inappropriate things to me.",
+            "job_id": 1
+        }
+        ```
+        
+        **Response Example**:
+        ```json
+        {
+            "success": true,
+            "data": {
+                "id": 1,
+                "reporter_id": 1,
+                "reported_user_id": 2,
+                "job_id": 3,
+                "reason": "inappropriate_language",
+                "additional_details": "This user said inappropriate things to me.",
+                "status": "pending"
+            },
+            "message": "Report submitted successfully."
+        }
+        ```
+        
+        Error Responses:
+        - 401 Unauthorized: If the user is not authenticated.
+        - 400 Bad Request: If user ID is missing or invalid.
+        - 404 Not Found: If the user does not exist.
+        """
         from communication.models import Report
         from authentication.models import User
         from jobs.models import Job
@@ -1569,3 +1645,5 @@ class ReportUserAPIView(APIView):
                 "status": report.status
             }
         }, status=status.HTTP_201_CREATED)
+
+
