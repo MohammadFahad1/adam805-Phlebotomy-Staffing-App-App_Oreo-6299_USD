@@ -37,6 +37,7 @@ INTERNAL_IPS = [ip.strip() for ip in config('INTERNAL_IPS', default='', cast=str
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -54,6 +55,7 @@ INSTALLED_APPS = [
     'jobs',
     'communication',
     'appointments',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -87,6 +89,25 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'phlebotomy_staffing.wsgi.application'
+ASGI_APPLICATION = 'phlebotomy_staffing.asgi.application'
+
+REDIS_URL = config('REDIS_URL', default=None)
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [REDIS_URL],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
 
 
 # Database
