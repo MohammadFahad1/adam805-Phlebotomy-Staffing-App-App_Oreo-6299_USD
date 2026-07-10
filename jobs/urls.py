@@ -28,8 +28,11 @@ urlpatterns = [
     # Phlebotomist Endpoints
     path('phlebotomist/jobs/', views.PhlebotomistAvailableJobsAPIView.as_view(), name='phlebotomist-available-jobs'),
     path('phlebotomist/applied/', views.PhlebotomistAppliedJobsAPIView.as_view(), name='phlebotomist-applied-jobs'),
+    path('phlebotomist/jobs/history/', views.PhlebotomistJobHistoryAPIView.as_view(), name='phlebotomist-job-history'),
     path('phlebotomist/jobs/pending/', views.PhlebotomistPendingJobListAPIView.as_view(), name='phlebotomist-pending-jobs'),
     path('phlebotomist/jobs/<str:job_id>/', views.PhlebotomistJobDetailsAPIView.as_view(), name='phlebotomist-job-detail'),
+    path('phlebotomist/jobs/<str:job_id>/complete/', views.PhlebotomistCompleteJobAPIView.as_view(), name='phlebotomist-complete-job'),
+    path('phlebotomist/jobs/<str:job_id>/review/', views.CreateJobReviewAPIView.as_view(), name='phlebotomist-job-review'),
     path('phlebotomist/jobs/<str:job_id>/apply/', views.PhlebotomistJobApplyView.as_view(), name='phlebotomist-job-apply'),
     path('phlebotomist/jobs/<str:job_id>/accept/', views.PhlebotomistAcceptJobsAPIView.as_view(), name='phlebotomist-accept-job'),
     path('phlebotomist/jobs/<str:job_id>/reject/', views.PhlebotomistRejectJobsAPIView.as_view(), name='phlebotomist-reject-job'),
