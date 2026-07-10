@@ -9,6 +9,12 @@ urlpatterns = [
     path('client/templates/<int:pk>/', views.JobTemplateDetailView.as_view(), name='client-job-template-detail'),
     path('client/home/', views.ClientHomeAPIView.as_view(), name='client-home'),
     path('client/home/ratings-reviews/', views.ClientRatingsReviewsAPIView.as_view(), name='client-ratings-reviews'),
+    path('client/appointments/', views.ClientAppointmentListForHome.as_view(), name='client-appointments'),
+    path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),
+    path('client/appointments/<int:pk>/', views.ClientAppointmentDetailAPIView.as_view(), name='client-appointment-detail'),
+    
+    # Common Endpoints
+    path('report-user/', views.ReportUserAPIView.as_view(), name='report-user'),
     
     # Phlebotomist Endpoints
     path('phlebotomist/jobs/', views.PhlebotomistAvailableJobsAPIView.as_view(), name='phlebotomist-available-jobs'),
@@ -20,6 +26,5 @@ urlpatterns = [
     path('phlebotomist/jobs/<str:job_id>/reject/', views.PhlebotomistRejectJobsAPIView.as_view(), name='phlebotomist-reject-job'),
     path('phlebotomist/home/', views.PhlebotomistHomeAPIView.as_view(), name='phlebotomist-home'),
     path('phlebotomist/home/ratings-reviews/', views.PhlebotomistRatingsReviewsAPIView.as_view(), name='phlebotomist-ratings-reviews'),
-    path('report-user/', views.ReportUserAPIView.as_view(), name='report-user'),
 ]
 

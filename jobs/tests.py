@@ -1464,6 +1464,25 @@ class ClientHomeAPIViewTests(APITestCase):
             role=User.CLIENT,
             is_active=True
         )
+        from authentication.models import Client
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Smith Healthcare LLC",
+            business_type="healthcare",
+            business_address_street="123 Main St",
+            business_address_city="New York",
+            business_address_state="NY",
+            business_address_zip="10001",
+            contact_person_name="John Smith",
+            business_phone="2125550100",
+            business_license_number="BL-987654",
+            business_description="Healthcare clinic",
+            hourly_pay_rate="30.00",
+            preferred_job_type="in_clinic_phlebotomy",
+            work_preference="full_time",
+            no_of_employees=10,
+            is_approved=True
+        )
 
         # Create PatientProfile & ServicePackage for appointment
         self.patient = PatientProfile.objects.create(
@@ -1540,6 +1559,33 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertEqual(data['data']['recent_notifications'][0]['title'], "New Message")
         self.assertEqual(data['data']['recent_notifications'][0]['message'], "Dr. Smith replied to your request")
         self.assertEqual(data['data']['recent_notifications'][0]['time'], "0s")
+
+    def test_client_pending_appointments_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-pending-appointments')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['data']), 1)
+        self.assertEqual(data['data'][0]['id'], self.appointment.id)
+        self.assertEqual(data['data'][0]['patient']['first_name'], "John")
+        self.assertEqual(data['data'][0]['service_package']['name'], "General Blood Test")
+
+    def test_client_appointment_detail_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-appointment-detail', kwargs={'pk': self.appointment.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['id'], self.appointment.id)
+        self.assertEqual(data['data']['patient']['first_name'], "John")
+        self.assertTrue(data['data']['patient']['patient_id'].endswith(f"-{self.patient.id:03d}"))
+        self.assertEqual(data['data']['service_details']['name'], "General Blood Test")
+        self.assertEqual(data['data']['location']['type'], "Patient's Home")
 
 
 

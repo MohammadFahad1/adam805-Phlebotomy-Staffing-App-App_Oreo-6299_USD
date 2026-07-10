@@ -2183,3 +2183,340 @@ class ClientHomeAPIView(APIView):
             },
             "message": "Client home data retrieved successfully."
         }, status=status.HTTP_200_OK)
+
+class ClientPendingAppointmentsAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def get(self, request):
+        """
+        **Client (Professional) Home page**\n
+        New applications: appointments assigned to the client for which no jobs are created yet.
+
+        **Example Response:**
+        ```json
+        {
+            "success": true,
+            "data": [
+                {
+                "id": 33,
+                "patient": {
+                    "id": 8,
+                    "first_name": "Alice",
+                    "last_name": "Bob",
+                    "email": "alice_bob@example.com",
+                    "phone_number": "1231231234",
+                    "dob": "1990-01-01",
+                    "gender": "male",
+                    "created_at": "2026-07-10T09:20:26.519911Z",
+                    "updated_at": "2026-07-10T09:20:26.519930Z"
+                },
+                "service_package": {
+                    "id": 1,
+                    "icon": "http://10.10.13.43:8001/media/service_package_icons/IMG_0516.png",
+                    "name": "Blood Draw",
+                    "description": "fhdf",
+                    "price": "10.00",
+                    "is_active": true,
+                    "features": [
+                        {
+                            "id": 1,
+                            "name": "Feature 1"
+                        },
+                        {
+                            "id": 2,
+                            "name": "Feature 2"
+                        }
+                    ],
+                    "created_at": "2026-07-09T04:28:39.341427Z",
+                    "updated_at": "2026-07-09T04:28:39.341442Z"
+                },
+                "appointment_date": "2026-07-14",
+                "start_time": "13:00:00",
+                "end_time": null,
+                "location_type": "home",
+                "location": "104 Blue Street, Cityville",
+                "status": "confirmed",
+                "created_at": "2026-07-10T09:20:26.733030Z"
+                }
+            ],
+            "message": "Pending appointments retrieved successfully."
+        }
+        ```
+        """
+        user = request.user
+        from appointments.models import Appointment
+        from appointments.serializers import AppointmentListSerializer
+
+        # Fetch appointments assigned to the client for which no job has been created yet.
+        appointments = Appointment.objects.filter(client=user, jobs__isnull=True).order_by('-created_at')
+
+        serializer = AppointmentListSerializer(appointments, many=True, context={'request': request})
+
+        return Response({
+            "success": True,
+            "data": serializer.data,
+            "message": "Pending appointments retrieved successfully."
+        }, status=status.HTTP_200_OK)
+
+class ClientAppointmentListForHome(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def get(self, request):
+        """
+        **Client (Professional) Home page**\n
+        Appointments History: Appointments assigned to the client.
+        
+        **Example Response:**
+        ```json
+        {
+            "success": true,
+            "data": [
+                {
+                "id": 33,
+                "patient": {
+                    "id": 8,
+                    "first_name": "Alice",
+                    "last_name": "Bob",
+                    "email": "alice_bob@example.com",
+                    "phone_number": "1231231234",
+                    "dob": "1990-01-01",
+                    "gender": "male",
+                    "created_at": "2026-07-10T09:20:26.519911Z",
+                    "updated_at": "2026-07-10T09:20:26.519930Z"
+                },
+                "service_package": {
+                    "id": 1,
+                    "icon": "http://10.10.13.43:8001/media/service_package_icons/IMG_0516.png",
+                    "name": "Blood Draw",
+                    "description": "fhdf",
+                    "price": "10.00",
+                    "is_active": true,
+                    "features": [
+                    {
+                        "id": 1,
+                        "name": "Feature 1"
+                    },
+                    {
+                        "id": 2,
+                        "name": "Feature 2"
+                    }
+                    ],
+                    "created_at": "2026-07-09T04:28:39.341427Z",
+                    "updated_at": "2026-07-09T04:28:39.341442Z"
+                },
+                "appointment_date": "2026-07-14",
+                "start_time": "13:00:00",
+                "end_time": null,
+                "location_type": "home",
+                "location": "104 Blue Street, Cityville",
+                "status": "confirmed",
+                "created_at": "2026-07-10T09:20:26.733030Z"
+                }
+            ],
+            "message": "Pending appointments retrieved successfully."
+        }
+        """
+        user = request.user
+        from appointments.models import Appointment
+        from appointments.serializers import AppointmentListSerializer
+
+        # Fetch appointments assigned to the client for which no job has been created yet.
+        appointments = Appointment.objects.filter(client=user).order_by('-created_at')
+
+        serializer = AppointmentListSerializer(appointments, many=True, context={'request': request})
+
+        return Response({
+            "success": True,
+            "data": serializer.data,
+            "message": "Pending appointments retrieved successfully."
+        }, status=status.HTTP_200_OK)
+
+class ClientAppointmentDetailAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def get(self, request, pk):
+        """
+        **Client (Professional) Home page**\n
+        Appointment Details: Appointment assigned to the client.
+
+        **Example Response:**
+        ```json
+        {
+            "success": true,
+            "data": {
+                "id": 33,
+                "patient": {
+                    "id": 8,
+                    "first_name": "Alice",
+                    "last_name": "Bob",
+                    "email": "alice_bob@example.com",
+                    "phone_number": "1231231234",
+                    "dob": "1990-01-01",
+                    "gender": "male",
+                    "created_at": "2026-07-10T09:20:26.519911Z",
+                    "updated_at": "2026-07-10T09:20:26.519930Z"
+                },
+                "service_package": {
+                    "id": 1,
+                    "icon": "http://10.10.13.43:8001/media/service_package_icons/IMG_0516.png",
+                    "name": "Blood Draw",
+                    "description": "fhdf",
+                    "price": "10.00",
+                    "is_active": true,
+                    "features": [
+                    {
+                        "id": 1,
+                        "name": "Feature 1"
+                    },
+                    {
+                        "id": 2,
+                        "name": "Feature 2"
+                    }
+                    ],
+                    "created_at": "2026-07-09T04:28:39.341427Z",
+                    "updated_at": "2026-07-09T04:28:39.341442Z"
+                },
+                "appointment_date": "2026-07-14",
+                "start_time": "13:00:00",
+                "end_time": null,
+                "location_type": "home",
+                "location": "104 Blue Street, Cityville",
+                "status": "confirmed",
+                "created_at": "2026-07-10T09:20:26.733030Z"
+            },
+            "message": "Appointment details retrieved successfully."
+        }
+        ```
+        """
+        user = request.user
+        import os
+        import datetime
+        from django.utils import timezone
+        from appointments.models import Appointment
+
+        # Fetch appointment assigned to the client.
+        appointment = Appointment.objects.filter(client=user, pk=pk).first()
+
+        if not appointment:
+            return Response({
+                "success": False,
+                "data": None,
+                "message": "Appointment not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        patient = appointment.patient
+        service = appointment.service_package
+
+        # Format relative upload time for prescription
+        def format_uploaded_time(dt):
+            if not dt:
+                return ""
+            now = timezone.now()
+            diff = now - dt
+            seconds = diff.total_seconds()
+            if seconds < 0:
+                seconds = 0
+            if seconds < 60:
+                return f"Uploaded {int(seconds)} seconds ago"
+            minutes = seconds / 60
+            if minutes < 60:
+                return f"Uploaded {int(minutes)} minutes ago"
+            hours = minutes / 60
+            if hours < 24:
+                return f"Uploaded {int(hours)} hours ago"
+            days = hours / 24
+            return f"Uploaded {int(days)} days ago"
+
+        # Calculate patient age
+        age_str = ""
+        if patient.dob:
+            today = datetime.date.today()
+            age = today.year - patient.dob.year - ((today.month, today.day) < (patient.dob.month, patient.dob.day))
+            age_str = f"{age} years"
+
+        # Format patient ID (#PT-YYYY-00X)
+        created_year = patient.created_at.year if patient.created_at else timezone.now().year
+        patient_id_formatted = f"#PT-{created_year}-{patient.id:04d}"
+
+        # Format appointment date & time
+        date_formatted = ""
+        if appointment.appointment_date:
+            date_formatted = appointment.appointment_date.strftime("%b %d, %Y")
+
+        time_formatted = ""
+        if appointment.start_time:
+            time_formatted = appointment.start_time.strftime("%I:%M %p")
+
+        # Format location type
+        location_type_display = {
+            'home': "Patient's Home",
+            'hospital': "Hospital/Clinic",
+            'lab': "Lab"
+        }.get(appointment.location_type, appointment.location_type.title() if appointment.location_type else "")
+
+        # Format estimated duration (from start/end time or default to 30 mins)
+        duration_mins = 30
+        if appointment.start_time and appointment.end_time:
+            dt1 = datetime.datetime.combine(datetime.date.min, appointment.start_time)
+            dt2 = datetime.datetime.combine(datetime.date.min, appointment.end_time)
+            duration_mins = int((dt2 - dt1).total_seconds() / 60)
+        estimated_duration = f"{duration_mins} minutes"
+
+        # Extract features
+        features_list = [f.name for f in service.features.all()] if service else []
+        features_desc = ", ".join(features_list) if features_list else (service.description if service else "")
+
+        # Prescription details
+        prescription_name = os.path.basename(appointment.prescription.name) if appointment.prescription else None
+        prescription_url = request.build_absolute_uri(appointment.prescription.url) if appointment.prescription else None
+        prescription_uploaded_at = format_uploaded_time(appointment.updated_at) if appointment.prescription else None
+
+        response_data = {
+            "id": appointment.id,
+            "status": appointment.status,
+            "status_display": appointment.get_status_display(),
+            "patient": {
+                "id": patient.id,
+                "first_name": patient.first_name,
+                "last_name": patient.last_name,
+                "full_name": f"{patient.first_name} {patient.last_name}",
+                "patient_id": patient_id_formatted,
+                "age": age_str,
+                "phone": patient.phone_number,
+                "dob": patient.dob.isoformat() if patient.dob else None
+            },
+            "service_details": {
+                "id": service.id if service else None,
+                "name": service.name if service else "",
+                "description": features_desc,
+                "estimated_duration": estimated_duration,
+                "features": features_list
+            },
+            "medical_information": {
+                "prescription_name": prescription_name,
+                "prescription_url": prescription_url,
+                "uploaded_at_formatted": prescription_uploaded_at,
+                "special_instructions": appointment.special_requests,
+                "known_allergies": appointment.known_allergies,
+                "medical_conditions": appointment.medical_conditions
+            },
+            "location": {
+                "type": location_type_display,
+                "address": appointment.location
+            },
+            "appointment_date": appointment.appointment_date.isoformat() if appointment.appointment_date else None,
+            "appointment_date_formatted": date_formatted,
+            "start_time": appointment.start_time.isoformat() if appointment.start_time else None,
+            "start_time_formatted": time_formatted
+        }
+
+        return Response({
+            "success": True,
+            "data": response_data,
+            "message": "Appointment details retrieved successfully."
+        }, status=status.HTTP_200_OK)
+
+
