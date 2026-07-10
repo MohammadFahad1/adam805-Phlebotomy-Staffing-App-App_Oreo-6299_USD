@@ -6,15 +6,53 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from communication.models import Message
 from communication.serializers import MessageSerializer, MessageCreateSerializer, UserChatSerializer
+from authentication.serializers import EmptySerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from drf_yasg.utils import swagger_auto_schema
+from phlebotomy_staffing.base import NewAPIView
 
 User = get_user_model()
 
-class ChatListAPIView(APIView):
+class ChatListAPIView(NewAPIView):
+    serializer_class = EmptySerializer
     permission_classes = [permissions.IsAuthenticated]
 
+
+    @swagger_auto_schema(tags=['Chat'])
     def get(self, request):
+        """
+        **
+        Get Chat List
+        **\n
+        GET /communication/chats/
+
+        Response:
+        [
+            {
+                "id": 99991,
+                "full_name": "Al Mubin",
+                "email": "mubin@example.com",
+                "role": "client",
+                "profile_picture": null,
+                "last_message": "Me: Send a pdf",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 0,
+                "is_online": true
+            },
+            {
+                "id": 99992,
+                "full_name": "Admin",
+                "email": "admin@example.com",
+                "role": "admin",
+                "profile_picture": null,
+                "last_message": "Perfect! Here's my location...",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 2,
+                "is_online": true
+            }
+        ]
+        """
         user = request.user
         
         # Get all distinct partner IDs
@@ -134,11 +172,43 @@ class ChatListAPIView(APIView):
             "results": chat_list
         }, status=200)
 
-
-class MessageHistoryAPIView(APIView):
+class MessageHistoryAPIView(NewAPIView):
+    serializer_class = MessageCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+
+    @swagger_auto_schema(tags=['Chat'])
     def get(self, request, partner_id):
+        """
+        **
+        Message History
+        **\n
+        GET /communication/chats/{partner_id}/
+
+        Response:
+        [
+            {
+                "id": 10001,
+                "sender": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": null},
+                "receiver": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": null},
+                "job_id": "2024-001",
+                "message_text": "Hi there! I wanted to confirm my appointment details for tomorrow.",
+                "is_read": true,
+                "is_seen": true,
+                "created_at": "2026-07-10T15:20:00Z"
+            },
+            {
+                "id": 10002,
+                "sender": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": null},
+                "receiver": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": null},
+                "job_id": "2024-001",
+                "message_text": "Sure, I can do that for you.",
+                "is_read": true,
+                "is_seen": true,
+                "created_at": "2026-07-10T15:21:00Z"
+            }
+        ]
+        """
         user = request.user
         
         # Support Mock Chat for Al Mubin (99991)
@@ -217,7 +287,28 @@ class MessageHistoryAPIView(APIView):
             "results": serializer.data
         }, status=200)
 
+    @swagger_auto_schema(tags=['Chat'], request_body=MessageCreateSerializer)
     def post(self, request, partner_id):
+        """
+
+        **
+        Create Message
+        **\n
+        POST /communication/chats/{partner_id}/
+
+        Response:
+        {
+            "id": 99991,
+            "full_name": "Al Mubin",
+            "email": "mubin@example.com",
+            "role": "client",
+            "profile_picture": null,
+            "last_message": "Me: Send a pdf",
+            "last_message_time": "2026-07-10T15:20:00Z",
+            "unread_count": 0,
+            "is_online": true
+        }
+        """
         user = request.user
         partner = get_object_or_404(User, id=partner_id)
         
@@ -256,14 +347,29 @@ class MessageHistoryAPIView(APIView):
             "message": MessageSerializer(msg).data
         }, status=201)
 
-
-class MarkAsSeenAPIView(APIView):
+class MarkAsSeenAPIView(NewAPIView):
+    serializer_class = EmptySerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @swagger_auto_schema(tags=['Chat'], request_body=EmptySerializer)
     def post(self, request, partner_id):
+        """
+
+        **
+        Mark as Seen
+        **\n
+        POST /communication/mark-as-seen/{partner_id}/
+
+        Response:
+        {
+            "success": True,
+            "message": "Messages marked as read."
+        }
+        """
         partner = get_object_or_404(User, id=partner_id)
         Message.objects.filter(sender=partner, receiver=request.user, is_read=False).update(is_read=True, is_seen=True)
         return Response({
             "success": True,
             "message": "Messages marked as read."
         }, status=200)
+
