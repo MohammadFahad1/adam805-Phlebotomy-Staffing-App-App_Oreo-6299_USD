@@ -1751,6 +1751,15 @@ class ClientHomeAPIViewTests(APITestCase):
         for item in response_pending.data['results']:
             self.assertEqual(item['status'], "Pending")
 
+    def test_client_job_invoice_pdf_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-job-invoice', args=[self.job.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(len(response.content) > 0)
+
+
 
 
 

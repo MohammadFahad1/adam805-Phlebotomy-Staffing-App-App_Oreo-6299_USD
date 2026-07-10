@@ -11,6 +11,7 @@ urlpatterns = [
     path('client/home/ratings-reviews/', views.ClientRatingsReviewsAPIView.as_view(), name='client-ratings-reviews'),
     path('client/home/analytics/', views.ClientAppointmentTrendsAPIView.as_view(), name='client-analytics-trends'),
     path('client/jobs/history-billing/', views.ClientJobHistoryAndBillingAPIView.as_view(), name='client-jobs-history-billing'),
+    path('client/jobs/<str:job_id>/invoice/', views.ClientJobInvoicePDFView.as_view(), name='client-job-invoice'),
 
     path('client/appointments/', views.ClientAppointmentListForHome.as_view(), name='client-appointments'),
     path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),
