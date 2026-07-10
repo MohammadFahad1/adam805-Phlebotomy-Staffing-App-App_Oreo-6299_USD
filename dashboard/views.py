@@ -1959,14 +1959,26 @@ class DisputeManagementDetailAPIView(NewAPIView):
 
 class PublicTermsOfServiceView(NewAPIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
     serializer_class = TermsOfServiceSerializer
     queryset = TermsOfService.objects.none()
 
-    @swagger_auto_schema(
-        tags=["Terms of Service"],
-        operation_description="Get the latest active Terms of Service / Service Agreement."
-    )
+    @swagger_auto_schema(tags=["Terms of Service"])
     def get(self, request):
+        """
+        Get the latest active Terms of Service / Service Agreement.
+        
+        **Response Example:**
+        ```json
+        {
+            "id": 1,
+            "title": "Primepath Service Agreement",
+            "description": "Last Updated: January 2025\nLegally Binding Document\n\n1. Terms of Service\nBy using Phlebotomist services, you agree to provide accurate healthcare services in accordance with professional standards and applicable regulations. This agreement establishes the framework for our partnership.\n\nKey Points:\n- Professional liability coverage required\n- Compliance with HIPAA regulations\n- 24-hour cancellation policy\n\n2. Payment Policies\nPayment terms are Net 15 days from service completion. Direct deposit is our preferred payment method, with payments processed bi-weekly.\n\nAverage processing time: 2-3 business days\n\n3. Legal Disclaimers\nThis agreement is governed by state healthcare regulations. Both parties acknowledge understanding of their rights and responsibilities under this partnership.",
+            "created_at": "2025-09-15T10:00:00.000Z",
+            "updated_at": "2025-09-15T10:00:00.000Z"
+        }
+        ```
+        """
         from dashboard.models import TermsOfService
         latest_terms = TermsOfService.objects.order_by('-created_at').first()
         if not latest_terms:
