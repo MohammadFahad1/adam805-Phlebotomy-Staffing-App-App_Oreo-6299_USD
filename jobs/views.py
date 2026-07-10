@@ -3532,7 +3532,6 @@ class CreateJobReviewAPIView(NewAPIView):
             }
         }, status=201 if created else 200)
 
-
 class PhlebotomistJobHistoryAPIView(APIView):
     permission_classes = [IsApprovedPhlebotomist]
 
@@ -3669,7 +3668,6 @@ class PhlebotomistJobHistoryAPIView(APIView):
         response.data["this_month_earnings"] = f"${month_earnings:,.2f}"
         response.data["jobs_completed_count"] = total_completed
         return response
-
 
 class PhlebotomistCompleteJobAPIView(APIView):
     permission_classes = [IsApprovedPhlebotomist]
