@@ -79,5 +79,6 @@ class ReportUserSerializer(serializers.Serializer):
         help_text="Optional associated Job ID."
     )
 
-
-
+class JobReviewSerializer(serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5, required=True, help_text="Rating for the job (1-5)")
+    comment = serializers.CharField(required=False, allow_blank=True, help_text="Comment for the job (optional)")

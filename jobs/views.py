@@ -1,3 +1,4 @@
+from jobs.serializers import JobReviewSerializer
 from authentication.permissions import IsApprovedPhlebotomist
 from phlebotomy_staffing.base import AutoPaginatedResponse, NewAPIView
 from rest_framework.response import Response
@@ -16,7 +17,6 @@ from rest_framework.views import APIView
 from jobs.models import Job, JobTemplate
 from jobs.serializers import JobCreateSerializer
 from datetime import datetime
-
 User = get_user_model()
 
 # Client Endpoints
@@ -3177,6 +3177,45 @@ class ClientJobDetailAPIView(APIView):
 
     @swagger_auto_schema(tags=["App (Client) - Job History Section"])
     def get(self, request, job_id):
+        """
+        **Job Detail**\n
+        Retrieves the details of a specific job.
+
+        **request**:
+            - job_id (str): The ID of the job.
+
+        **response**:
+        ```json
+        {
+            "success": True,
+            "data": {
+                "id": "JB-2025-0315",
+                "job_status": {
+                    "payment_status": "Paid"
+                },
+                "assigned_phlebotomist": {
+                    "profile_picture": None,
+                    "name": "FA Kabita",
+                    "rating": 4.9,
+                    "reviews_count": 127,
+                    "experience": "5+ years experience",
+                    "bio": "Experienced phlebotomist with 8+ years in mobile blood collection. Specializes in geriatric and pediatric care"
+                },
+                "job_description": {
+                    "title": "Blood Draw Station",
+                    "date": "July 15, 2025",
+                    "time": "9:00 AM - 1:00 PM (4 hours)",
+                    "description": "Perform venipuncture and capillary punctures. Ensure proper specimen handling and labeling. Maintain a clean and sterile work environment."
+                },
+                "payment_details": {
+                    "hourly_rate": "$25.00",
+                    "total_hours": 4,
+                    "total_amount": "$100.00"
+                }
+            }
+        }
+        ```
+        """
         from jobs.models import Job
         from appointments.models import Payment
         from communication.models import Review
@@ -3339,6 +3378,24 @@ class ClientJobPayAPIView(APIView):
 
     @swagger_auto_schema(tags=["App (Client) - Job History Section"])
     def post(self, request, job_id):
+        """
+        **Create Job Review**\n
+        Creates a review for a specific job.
+
+        request:
+            rating (int): Rating for the job (1-5).
+            comment (str): Comment for the job (optional).
+
+        response:
+            {
+                "success": True,
+                "message": "Review created successfully.",
+                "data": {
+                    "rating": 5,
+                    "comment": "Great job!"
+                }
+            }
+        """
         from jobs.models import Job
         from appointments.views import create_job_checkout_session
         from django.shortcuts import get_object_or_404
@@ -3353,28 +3410,39 @@ class ClientJobPayAPIView(APIView):
             "checkout_url": checkout_url
         }, status=200)
 
-class CreateJobReviewAPIView(APIView):
+class CreateJobReviewAPIView(NewAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = JobReviewSerializer
     queryset = Job.objects.none()
 
     @swagger_auto_schema(tags=["App (Client) - Job History Section"])
     def post(self, request, job_id):
+        """
+        **Create Job Review**\n
+        Creates a review for a specific job.
+
+        request:
+            rating (int): Rating for the job (1-5).
+            comment (str): Comment for the job (optional).
+
+        response:
+            {
+                "success": True,
+                "message": "Review created successfully.",
+                "data": {
+                    "rating": 5,
+                    "comment": "Great job!"
+                }
+            }
+        """
         from jobs.models import Job
         from communication.models import Review
         from django.shortcuts import get_object_or_404
 
-        rating = request.data.get('rating')
-        comment = request.data.get('comment', '')
-
-        if not rating:
-            return Response({"detail": "Rating is required."}, status=400)
-
-        try:
-            rating = int(rating)
-            if rating < 1 or rating > 5:
-                return Response({"detail": "Rating must be between 1 and 5."}, status=400)
-        except ValueError:
-            return Response({"detail": "Rating must be an integer."}, status=400)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        rating = serializer.validated_data['rating']
+        comment = serializer.validated_data.get('comment', '')
 
         # Mock Job support
         if job_id == "JB-2025-0315":
