@@ -651,7 +651,7 @@ class PhlebotomistProfileUpdateView(NewAPIView):
     http_method_names = ['patch']
 
     @swagger_auto_schema(
-        tags=['Profile Management'],
+        tags=['App - Profile Management'],
         manual_parameters=[
             openapi.Parameter('full_name',            openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
             openapi.Parameter('phone_number',         openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
@@ -885,7 +885,7 @@ class ClientProfileUpdateView(NewAPIView):
     http_method_names = ['patch']
 
     @swagger_auto_schema(
-        tags=['Profile Management'],
+        tags=['App - Profile Management'],
         manual_parameters=[
             openapi.Parameter('full_name',                  openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
             openapi.Parameter('phone_number',               openapi.IN_FORM, type=openapi.TYPE_STRING,  required=False),
@@ -1118,7 +1118,7 @@ class PhlebotomistProfileView(NewAPIView):
     permission_classes = [IsAuthenticated]
     http_method_names = ['get']
 
-    @swagger_auto_schema(tags=['Profile Management'])
+    @swagger_auto_schema(tags=['App - Profile Management'])
     def get(self, request):
         """
         **Get Phlebotomist Profile - Phlebotomist Only**\n
@@ -1294,7 +1294,7 @@ class ClientProfileView(NewAPIView):
     permission_classes = [IsAuthenticated]
     http_method_names = ['get']
 
-    @swagger_auto_schema(tags=['Profile Management'])
+    @swagger_auto_schema(tags=['App - Profile Management'])
     def get(self, request):
         """
         **Get Client Profile - Client Only**\n

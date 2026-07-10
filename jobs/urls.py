@@ -12,6 +12,10 @@ urlpatterns = [
     path('client/home/analytics/', views.ClientAppointmentTrendsAPIView.as_view(), name='client-analytics-trends'),
     path('client/jobs/history-billing/', views.ClientJobHistoryAndBillingAPIView.as_view(), name='client-jobs-history-billing'),
     path('client/jobs/<str:job_id>/invoice/', views.ClientJobInvoicePDFView.as_view(), name='client-job-invoice'),
+    path('client/jobs/<str:job_id>/', views.ClientJobDetailAPIView.as_view(), name='client-job-detail'),
+    path('client/jobs/<str:job_id>/pay/', views.ClientJobPayAPIView.as_view(), name='client-job-pay'),
+    path('client/jobs/<str:job_id>/review/', views.CreateJobReviewAPIView.as_view(), name='client-job-review'),
+    path('jobs/<str:job_id>/review/', views.CreateJobReviewAPIView.as_view(), name='job-review'),
 
     path('client/appointments/', views.ClientAppointmentListForHome.as_view(), name='client-appointments'),
     path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),

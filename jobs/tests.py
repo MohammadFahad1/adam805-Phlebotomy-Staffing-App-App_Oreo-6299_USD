@@ -1759,6 +1759,81 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(len(response.content) > 0)
 
+    def test_client_job_detail_mock_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-job-detail', args=["JB-2025-0315"])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], "JB-2025-0315")
+        self.assertEqual(response.data["assigned_phlebotomist"]["name"], "FA Kabita")
+        self.assertEqual(response.data["job_description"]["title"], "Blood Draw Station")
+
+    def test_client_job_detail_real_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-job-detail', args=[self.job.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.job.id)
+        self.assertIn("job_status", response.data)
+        self.assertIn("assigned_phlebotomist", response.data)
+        self.assertIn("payment_details", response.data)
+
+    def test_client_job_pay_real_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-job-pay', args=[self.job.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["success"])
+        self.assertIn("checkout_url", response.data)
+
+    def test_create_job_review_success(self):
+        # Create and assign a phlebotomist to the job first
+        phleb_user = User.objects.create_user(
+            email="phleb_review_test@example.com",
+            password="SecurePassword123!",
+            full_name="FA Kabita",
+            phone_number="1112223333",
+            gender="female",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        from authentication.models import Phlebotomist
+        Phlebotomist.objects.create(
+            user=phleb_user,
+            license_number="LIC-12345",
+            license_expiry_date="2030-01-01",
+            years_of_experience=5,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Dallas"
+        )
+        from jobs.models import JobAssignment
+        JobAssignment.objects.create(
+            job=self.job,
+            phlebotomist=phleb_user,
+            client=self.client_user,
+            status=JobAssignment.ACTIVE
+        )
+
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-job-review', args=[self.job.id])
+        payload = {
+            "rating": 4,
+            "comment": "Nice job!"
+        }
+        response = self.client.post(url, data=payload, format='json')
+        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED])
+        self.assertTrue(response.data["success"])
+        
+        # Verify the review details in the detail response
+        detail_url = reverse('client-job-detail', args=[self.job.id])
+        detail_response = self.client.get(detail_url)
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(detail_response.data["review"]["has_reviewed"])
+        self.assertEqual(detail_response.data["review"]["rating"], 4)
+        self.assertEqual(detail_response.data["review"]["comment"], "Nice job!")
+
 
 
 

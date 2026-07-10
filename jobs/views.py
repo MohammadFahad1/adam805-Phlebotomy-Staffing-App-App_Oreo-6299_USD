@@ -1040,6 +1040,20 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
         tax_withholding = subtotal * 0.15
         total_earnings = subtotal - service_fee - tax_withholding
 
+        # Check payment details
+        from appointments.models import Payment
+        payment = Payment.objects.filter(job=job).first()
+        payment_status = "Paid" if (payment and payment.payment_status == 'paid') else "Pending"
+        payment_method = "Direct Deposit"
+        payment_date = payment.updated_at.strftime("%B %d, %Y") if (payment and payment.payment_status == 'paid') else "N/A"
+
+        # Check review details (phlebotomist reviewing client)
+        from communication.models import Review
+        review_obj = Review.objects.filter(job=job, reviewer=request.user).first()
+        has_reviewed = review_obj is not None
+        review_rating = review_obj.rating if has_reviewed else 5.0
+        review_comment = review_obj.comment if has_reviewed else ""
+
         # Check if the phlebotomist already applied
         from jobs.models import JobApplication
         app = JobApplication.objects.filter(job=job, phlebotomist=request.user).first()
@@ -1067,6 +1081,9 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
             "service_fee": f"-${service_fee:.2f}",
             "tax_withholding": f"-${tax_withholding:.2f}",
             "total_earnings": f"${total_earnings:.2f}",
+            "job_status": {
+                "payment_status": payment_status
+            },
             "client_info": {
                 "name": client_name,
                 "role": "Client",
@@ -1088,6 +1105,16 @@ class PhlebotomistJobDetailsAPIView(NewAPIView):
                 "service_fee": f"-${service_fee:.2f}",
                 "tax_withholding": f"-${tax_withholding:.2f}",
                 "total_earnings": f"${total_earnings:.2f}"
+            },
+            "additional_details": {
+                "payment_method": payment_method,
+                "payment_date": payment_date,
+                "job_id": f"#{job.id}"
+            },
+            "review": {
+                "has_reviewed": has_reviewed,
+                "rating": review_rating,
+                "comment": review_comment
             }
         }
         return Response(data, status=status.HTTP_200_OK)
@@ -2911,6 +2938,7 @@ class ClientJobInvoicePDFView(APIView):
     permission_classes = [IsAuthenticated]
     queryset = Job.objects.none()
 
+    @swagger_auto_schema(tags=["App (Client) - Job History Section"])
     def get(self, request, job_id):
         """
         **Generate and return invoice PDF for a specific job.**\n
@@ -3142,6 +3170,253 @@ class ClientJobInvoicePDFView(APIView):
 
         doc.build(story)
         return response
+
+class ClientJobDetailAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+    queryset = Job.objects.none()
+
+    @swagger_auto_schema(tags=["App (Client) - Job History Section"])
+    def get(self, request, job_id):
+        from jobs.models import Job
+        from appointments.models import Payment
+        from communication.models import Review
+        from django.shortcuts import get_object_or_404
+        from django.db import models
+        import datetime
+
+        # Check for Mock Job
+        if job_id == "JB-2025-0315":
+            mock_data = {
+                "success": True,
+                "data": {
+                    "id": "JB-2025-0315",
+                    "job_status": {
+                        "payment_status": "Paid"
+                    },
+                    "assigned_phlebotomist": {
+                        "profile_picture": None,
+                        "name": "FA Kabita",
+                        "rating": 4.9,
+                        "reviews_count": 127,
+                        "experience": "5+ years experience",
+                        "bio": "Experienced phlebotomist with 8+ years in mobile blood collection. Specializes in geriatric and pediatric care"
+                    },
+                    "job_description": {
+                        "title": "Blood Draw Station",
+                        "date": "July 15, 2025",
+                        "time": "9:00 AM - 1:00 PM (4 hours)",
+                        "description": "Perform venipuncture and capillary punctures. Ensure proper specimen handling and labeling. Maintain a clean and sterile work environment."
+                    },
+                    "payment_details": {
+                        "hourly_rate": "$25.00",
+                        "total_hours": "4.0 hrs",
+                        "subtotal": "$100.00",
+                        "service_fee": "-$5.00",
+                        "tax_withholding": "-$15.00",
+                        "total_earnings": "$80.00"
+                    },
+                    "additional_details": {
+                        "payment_method": "Direct Deposit",
+                        "payment_date": "July 17, 2025",
+                        "job_id": "#JB-2025-0315"
+                    },
+                    "pay_now_button_visible": False,
+                    "review": {
+                        "has_reviewed": False,
+                        "rating": 5.0,
+                        "comment": ""
+                    }
+                }
+            }
+            # Check if there is an actual Review in DB for mock job
+            review_obj = Review.objects.filter(job_id=job_id, reviewer=request.user).first()
+            if review_obj:
+                mock_data["data"]["review"] = {
+                    "has_reviewed": True,
+                    "rating": float(review_obj.rating),
+                    "comment": review_obj.comment
+                }
+            return Response(mock_data["data"], status=status.HTTP_200_OK)
+
+        # Real Job logic
+        job = get_object_or_404(Job, id=job_id)
+        if job.client != request.user:
+            return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Assigned Phlebotomist details
+        phleb_info = None
+        if hasattr(job, 'assignment') and job.assignment:
+            phleb = job.assignment.phlebotomist
+            try:
+                phleb_profile = phleb.phlebotomist_profile
+                experience = f"{phleb_profile.years_of_experience}+ years experience"
+                specialty_display = phleb_profile.get_specialty_display() if hasattr(phleb_profile, 'get_specialty_display') else "General Phlebotomy"
+                bio = f"Experienced phlebotomist specializing in {specialty_display}."
+            except Exception:
+                experience = "N/A"
+                bio = "Professional phlebotomist."
+
+            # Calculate phleb rating & reviews count
+            phleb_reviews = Review.objects.filter(reviewed=phleb)
+            reviews_count = phleb_reviews.count()
+            avg_rating = phleb_reviews.aggregate(models.Avg('rating'))['rating__avg']
+            avg_rating = round(float(avg_rating), 1) if avg_rating is not None else 5.0
+
+            profile_pic_url = None
+            if phleb.profile_picture:
+                profile_pic_url = request.build_absolute_uri(phleb.profile_picture.url)
+
+            phleb_info = {
+                "profile_picture": profile_pic_url,
+                "name": phleb.full_name,
+                "rating": avg_rating,
+                "reviews_count": reviews_count,
+                "experience": experience,
+                "bio": bio
+            }
+
+        # Payment details
+        payment = Payment.objects.filter(job=job).first()
+        payment_status = "Paid" if (payment and payment.payment_status == 'paid') else "Pending"
+        
+        # Payment breakdown
+        subtotal = float(job.pay_rate) * float(job.shift_duration)
+        service_fee = subtotal * 0.05
+        tax_withholding = subtotal * 0.15
+        total_earnings = subtotal - service_fee - tax_withholding
+
+        payment_method = "Direct Deposit"
+        payment_date = payment.updated_at.strftime("%B %d, %Y") if (payment and payment.payment_status == 'paid') else "N/A"
+
+        # Shift times formatting
+        start_str = job.shift_start.strftime("%I:%M %p").lstrip('0') if job.shift_start else ""
+        end_str = job.shift_end.strftime("%I:%M %p").lstrip('0') if job.shift_end else ""
+        shift_time = f"{start_str} - {end_str} ({job.shift_duration} hour{'s' if job.shift_duration != 1 else ''})"
+
+        # Check client's review for phlebotomist
+        review_obj = Review.objects.filter(job=job, reviewer=request.user).first()
+        has_reviewed = review_obj is not None
+        review_rating = review_obj.rating if has_reviewed else 5.0
+        review_comment = review_obj.comment if has_reviewed else ""
+
+        data = {
+            "id": job.id,
+            "job_status": {
+                "payment_status": payment_status
+            },
+            "assigned_phlebotomist": phleb_info,
+            "job_description": {
+                "title": job.title,
+                "date": job.shift_date.strftime("%B %d, %Y") if job.shift_date else "",
+                "time": shift_time,
+                "description": job.description
+            },
+            "payment_details": {
+                "hourly_rate": f"${job.pay_rate:.2f}",
+                "total_hours": f"{float(job.shift_duration):.1f} hrs",
+                "subtotal": f"${subtotal:.2f}",
+                "service_fee": f"-${service_fee:.2f}",
+                "tax_withholding": f"-${tax_withholding:.2f}",
+                "total_earnings": f"${total_earnings:.2f}"
+            },
+            "additional_details": {
+                "payment_method": payment_method,
+                "payment_date": payment_date,
+                "job_id": f"#{job.id}"
+            },
+            "pay_now_button_visible": (payment_status == "Pending"),
+            "review": {
+                "has_reviewed": has_reviewed,
+                "rating": review_rating,
+                "comment": review_comment
+            }
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+class ClientJobPayAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+    queryset = Job.objects.none()
+
+    @swagger_auto_schema(tags=["App (Client) - Job History Section"])
+    def post(self, request, job_id):
+        from jobs.models import Job
+        from appointments.views import create_job_checkout_session
+        from django.shortcuts import get_object_or_404
+
+        job = get_object_or_404(Job, id=job_id)
+        if job.client != request.user:
+            return Response({"detail": "Permission denied."}, status=403)
+
+        checkout_url = create_job_checkout_session(job, request)
+        return Response({
+            "success": True,
+            "checkout_url": checkout_url
+        }, status=200)
+
+class CreateJobReviewAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    queryset = Job.objects.none()
+
+    @swagger_auto_schema(tags=["App (Client) - Job History Section"])
+    def post(self, request, job_id):
+        from jobs.models import Job
+        from communication.models import Review
+        from django.shortcuts import get_object_or_404
+
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '')
+
+        if not rating:
+            return Response({"detail": "Rating is required."}, status=400)
+
+        try:
+            rating = int(rating)
+            if rating < 1 or rating > 5:
+                return Response({"detail": "Rating must be between 1 and 5."}, status=400)
+        except ValueError:
+            return Response({"detail": "Rating must be an integer."}, status=400)
+
+        # Mock Job support
+        if job_id == "JB-2025-0315":
+            return Response({
+                "success": True,
+                "message": "Review submitted successfully (Mock Job)."
+            }, status=200)
+
+        job = get_object_or_404(Job, id=job_id)
+
+        # Determine who is reviewer and who is reviewed
+        if job.client == request.user:
+            # Client reviewing phlebotomist
+            if not hasattr(job, 'assignment') or not job.assignment:
+                return Response({"detail": "No phlebotomist is assigned to this job yet."}, status=400)
+            reviewed_user = job.assignment.phlebotomist
+        elif hasattr(job, 'assignment') and job.assignment and job.assignment.phlebotomist == request.user:
+            # Phlebotomist reviewing client
+            reviewed_user = job.client
+        else:
+            return Response({"detail": "You are not a participant in this job."}, status=403)
+
+        # Create or update the review
+        review, created = Review.objects.update_or_create(
+            job=job,
+            reviewer=request.user,
+            defaults={
+                'reviewed': reviewed_user,
+                'rating': rating,
+                'comment': comment
+            }
+        )
+
+        return Response({
+            "success": True,
+            "message": "Review submitted successfully.",
+            "review": {
+                "id": review.id,
+                "rating": review.rating,
+                "comment": review.comment
+            }
+        }, status=201 if created else 200)
 
 
 
