@@ -150,6 +150,78 @@ class Command(BaseCommand):
             phleb3.set_password("SecurePassword123!")
             phleb3.save()
 
+        # Dummy users specifically for testing the chat UI mockups
+        mubin_user, _ = User.objects.get_or_create(
+            email="mubin@example.com",
+            defaults={
+                "full_name": "Al Mubin",
+                "phone_number": "1234567890",
+                "gender": "male",
+                "dob": "1994-04-12",
+                "role": User.CLIENT
+            }
+        )
+        if _:
+            mubin_user.set_password("SecurePassword123!")
+            mubin_user.save()
+
+        arafat_user, _ = User.objects.get_or_create(
+            email="arafat@example.com",
+            defaults={
+                "full_name": "Al Arafat",
+                "phone_number": "2345678901",
+                "gender": "male",
+                "dob": "1993-08-20",
+                "role": User.PHLEBOTOMIST
+            }
+        )
+        if _:
+            arafat_user.set_password("SecurePassword123!")
+            arafat_user.save()
+
+        shoiab_user, _ = User.objects.get_or_create(
+            email="shoiab@example.com",
+            defaults={
+                "full_name": "Shoiab Akther",
+                "phone_number": "3456789012",
+                "gender": "male",
+                "dob": "1995-10-15",
+                "role": User.PHLEBOTOMIST
+            }
+        )
+        if _:
+            shoiab_user.set_password("SecurePassword123!")
+            shoiab_user.save()
+
+        shamin_user, _ = User.objects.get_or_create(
+            email="shamin@example.com",
+            defaults={
+                "full_name": "Md. Shamin",
+                "phone_number": "4567890123",
+                "gender": "male",
+                "dob": "1991-12-05",
+                "role": User.PHLEBOTOMIST
+            }
+        )
+        if _:
+            shamin_user.set_password("SecurePassword123!")
+            shamin_user.save()
+
+        fahmida_user, _ = User.objects.get_or_create(
+            email="fahmida@example.com",
+            defaults={
+                "full_name": "Fahmida Tasnim",
+                "phone_number": "5678901234",
+                "gender": "female",
+                "dob": "1996-01-22",
+                "role": User.PHLEBOTOMIST
+            }
+        )
+        if _:
+            fahmida_user.set_password("SecurePassword123!")
+            fahmida_user.save()
+
+
         # 3. Client Profiles
         c_profile1, _ = Client.objects.get_or_create(
             client=client1,
@@ -498,6 +570,81 @@ class Command(BaseCommand):
             job=job1,
             defaults={"message_text": "Hi Sarah! Yes, I will be there on time. Thanks!"}
         )
+
+        # Seed realistic chat history for the testing phlebotomists
+        for p in [phleb1, phleb2]:
+            # With Al Mubin
+            Message.objects.get_or_create(
+                sender=mubin_user,
+                receiver=p,
+                message_text="Hi there! I wanted to confirm my appointment details for tomorrow.",
+                defaults={"is_read": True, "is_seen": True}
+            )
+            Message.objects.get_or_create(
+                sender=p,
+                receiver=mubin_user,
+                message_text="Hello John! Yes, your appointment is confirmed for tomorrow at 2:00 PM. Please arrive 15 minutes early.",
+                defaults={"is_read": True, "is_seen": True}
+            )
+            Message.objects.get_or_create(
+                sender=mubin_user,
+                receiver=p,
+                message_text="Perfect! Here's my location for reference.",
+                defaults={"is_read": True, "is_seen": True}
+            )
+            Message.objects.get_or_create(
+                sender=p,
+                receiver=mubin_user,
+                message_text="Great! I can see the building clearly. I'll be there on time.",
+                defaults={"is_read": True, "is_seen": True}
+            )
+            Message.objects.get_or_create(
+                sender=p,
+                receiver=mubin_user,
+                message_text="Here are the contract details we discussed.",
+                defaults={"is_read": True, "is_seen": True}
+            )
+
+            # With Admin
+            Message.objects.get_or_create(
+                sender=admin_user,
+                receiver=p,
+                message_text="Perfect! Here's my location...",
+                defaults={"is_read": False, "is_seen": False}
+            )
+
+            # With Al Arafat
+            Message.objects.get_or_create(
+                sender=arafat_user,
+                receiver=p,
+                message_text="Hi there! I wanted to confirm...",
+                defaults={"is_read": False, "is_seen": False}
+            )
+
+            # With Shoiab Akther
+            Message.objects.get_or_create(
+                sender=p,
+                receiver=shoiab_user,
+                message_text="Yes, of course come...",
+                defaults={"is_read": True, "is_seen": True}
+            )
+
+            # With Md. Shamin
+            Message.objects.get_or_create(
+                sender=shamin_user,
+                receiver=p,
+                message_text="Hi there! I wanted to ...",
+                defaults={"is_read": True, "is_seen": True}
+            )
+
+            # With Fahmida Tasnim
+            Message.objects.get_or_create(
+                sender=fahmida_user,
+                receiver=p,
+                message_text="Ok,good boy !",
+                defaults={"is_read": True, "is_seen": True}
+            )
+
 
         # 13. Reviews
         Review.objects.get_or_create(

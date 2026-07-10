@@ -6,3 +6,4 @@ urlpatterns = [
     path('chats/<int:partner_id>/', views.MessageHistoryAPIView.as_view(), name='message-history'),
     path('chats/<int:partner_id>/seen/', views.MarkAsSeenAPIView.as_view(), name='mark-as-seen'),
 ]
+

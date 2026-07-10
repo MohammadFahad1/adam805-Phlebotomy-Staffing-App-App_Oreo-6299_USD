@@ -210,66 +210,6 @@ class MessageHistoryAPIView(NewAPIView):
         ]
         """
         user = request.user
-        
-        # Support Mock Chat for Al Mubin (99991)
-        if partner_id == 99991:
-            mock_messages = [
-                {
-                    "id": 10001,
-                    "sender": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                    "receiver": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": None},
-                    "job_id": "2024-001",
-                    "message_text": "Hi there! I wanted to confirm my appointment details for tomorrow.",
-                    "is_read": True,
-                    "is_seen": True,
-                    "created_at": "2026-07-10T10:30:00Z"
-                },
-                {
-                    "id": 10002,
-                    "sender": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": None},
-                    "receiver": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                    "job_id": "2024-001",
-                    "message_text": "Hello John! Yes, your appointment is confirmed for tomorrow at 2:00 PM. Please arrive 15 minutes early.",
-                    "is_read": True,
-                    "is_seen": True,
-                    "created_at": "2026-07-10T10:32:00Z"
-                },
-                {
-                    "id": 10003,
-                    "sender": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                    "receiver": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": None},
-                    "job_id": "2024-001",
-                    "message_text": "Perfect! Here's my location for reference.",
-                    "is_read": True,
-                    "is_seen": True,
-                    "created_at": "2026-07-10T10:35:00Z"
-                },
-                {
-                    "id": 10004,
-                    "sender": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": None},
-                    "receiver": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                    "job_id": "2024-001",
-                    "message_text": "Great! I can see the building clearly. I'll be there on time.",
-                    "is_read": True,
-                    "is_seen": True,
-                    "created_at": "2026-07-10T10:37:00Z"
-                },
-                {
-                    "id": 10005,
-                    "sender": {"id": user.id, "full_name": user.full_name, "email": user.email, "role": user.role, "profile_picture": None},
-                    "receiver": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                    "job_id": "2024-001",
-                    "message_text": "Here are the contract details we discussed.",
-                    "is_read": True,
-                    "is_seen": True,
-                    "created_at": "2026-07-10T10:40:00Z"
-                }
-            ]
-            return Response({
-                "success": True,
-                "partner": {"id": 99991, "full_name": "Al Mubin", "email": "mubin@example.com", "role": "client", "profile_picture": None},
-                "results": mock_messages
-            }, status=200)
 
         partner = get_object_or_404(User, id=partner_id)
         
