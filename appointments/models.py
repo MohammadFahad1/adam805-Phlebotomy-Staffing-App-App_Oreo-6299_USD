@@ -45,10 +45,12 @@ class PatientProfile(models.Model):
 class Appointment(models.Model):
     PENDING = 'pending'
     CONFIRMED = 'confirmed'
+    CLIENT_ASSIGNED = 'client_assigned'
     ASSIGNED = 'assigned'
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
     CANCELLED = 'cancelled'
+    RESCHEDULED = 'rescheduled'
     NO_SHOW = 'no_show'
     STATUS_CHOICES = [
         (PENDING, 'Pending'),
@@ -57,9 +59,11 @@ class Appointment(models.Model):
         (IN_PROGRESS, 'In Progress'),
         (COMPLETED, 'Completed'),
         (CANCELLED, 'Cancelled'),
+        (RESCHEDULED, 'Rescheduled'),
         (NO_SHOW, 'No Show'),
     ]
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name='appointments')
+    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appointments', null=True, blank=True)
     service_package = models.ForeignKey(ServicePackage, on_delete=models.PROTECT, related_name='appointments')
     appointment_date = models.DateField()
     start_time = models.TimeField()
@@ -89,7 +93,8 @@ class Payment(models.Model):
         (PAID, 'Paid'),
         (FAILED, 'Failed'),
     ]
-    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name='payments')
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    job = models.ForeignKey('jobs.Job', on_delete=models.SET_NULL, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
     stripe_payment_id = models.CharField(max_length=255, blank=True, null=True)
