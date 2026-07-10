@@ -1445,6 +1445,104 @@ class PhlebotomistHomeAPIViewTests(APITestCase):
         self.assertEqual(data['data']['license_expiration']['expiry_date'], "15 August 2030")
 
 
+class ClientHomeAPIViewTests(APITestCase):
+
+    def setUp(self):
+        from jobs.models import Job, JobAssignment
+        from appointments.models import Appointment, PatientProfile, ServicePackage
+        from communication.models import Notification
+        import datetime
+
+        # Client user
+        self.client_user = User.objects.create_user(
+            email="client_home_test@example.com",
+            password="SecurePassword123!",
+            full_name="Dr. Ratul",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create PatientProfile & ServicePackage for appointment
+        self.patient = PatientProfile.objects.create(
+            first_name="John",
+            last_name="Doe",
+            email="patient@example.com",
+            phone_number="9876543210",
+            gender="male",
+            dob="1995-05-05"
+        )
+        self.service = ServicePackage.objects.create(
+            name="General Blood Test",
+            description="Routine test",
+            price=150.00
+        )
+
+        # Create Appointment assigned to client, no job created yet
+        self.appointment = Appointment.objects.create(
+            patient=self.patient,
+            client=self.client_user,
+            service_package=self.service,
+            appointment_date=datetime.date.today(),
+            start_time=datetime.time(10, 0),
+            location_type="home",
+            location="123 Road",
+            status=Appointment.PENDING
+        )
+
+        # Create Job created by client, no phlebotomist assigned
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Collection job",
+            description="Perform venipuncture.",
+            location="Patient address",
+            city="Dhaka",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(14, 30),
+            shift_end=datetime.time(15, 0),
+            shift_duration=1,
+            pay_type="hourly",
+            pay_rate=50.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # Create Notification
+        self.notification = Notification.objects.create(
+            user=self.client_user,
+            title="New Message",
+            message="Dr. Smith replied to your request",
+            type="message",
+            is_read=False
+        )
+
+        self.home_url = reverse('client-home')
+
+    def test_client_home_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(self.home_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertEqual(data['data']['user']['name'], "Dr. Ratul")
+        
+        # Verify dashboard overview metrics
+        # pending_assignments: 1 (our job, since assignment__isnull=True)
+        # new_applications: 1 (our appointment, since jobs__isnull=True)
+        self.assertEqual(data['data']['metrics']['pending_assignments'], 1)
+        self.assertEqual(data['data']['metrics']['new_applications'], 1)
+
+        # Verify recent notifications
+        self.assertEqual(len(data['data']['recent_notifications']), 1)
+        self.assertEqual(data['data']['recent_notifications'][0]['title'], "New Message")
+        self.assertEqual(data['data']['recent_notifications'][0]['message'], "Dr. Smith replied to your request")
+        self.assertEqual(data['data']['recent_notifications'][0]['time'], "0s")
+
+
+
 
 
 

@@ -2060,4 +2060,126 @@ class PhlebotomistHomeAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+# Client Endpoints
+class ClientHomeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def get(self, request):
+        """
+        **Client (Professional) Home page**\n
+        New applications: appointments assigned to the client for which no jobs are created yet by the client.
+
+        **Example Response:**
+        ```json
+        {
+        "success": true,
+        "data": {
+            "user": {
+                "id": 2,
+                "name": "Dr. Ratul",
+                "email": "dr.ratul@example.com",
+                "avatar": "http://localhost:8001/media/profile_pictures/avatar.jpg",
+                "role": "client"
+            },
+                "metrics": {
+                "pending_assignments": 3,
+                "new_applications": 5
+            },
+            "recent_notifications": [
+            {
+                "id": 1,
+                "title": "New Message",
+                "message": "Dr. Smith replied to your request",
+                "type": "message",
+                "is_read": false,
+                "created_at": "2026-07-10T07:00:00Z",
+                "time": "2m"
+            },
+            {
+                "id": 2,
+                "title": "Payment Received",
+                "message": "$2,500 for consultation services",
+                "type": "payment",
+                "is_read": false,
+                "created_at": "2026-07-10T06:00:00Z",
+                "time": "1h"
+            }
+            ]
+        },
+        "message": "Client home data retrieved successfully."
+        }
+        ```
+                
+        """
+        user = request.user
+        
+        avatar_url = request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+        user_data = {
+            "id": user.id,
+            "name": user.full_name,
+            "email": user.email,
+            "avatar": avatar_url,
+            "role": user.role
+        }
+
+        from jobs.models import Job
+        from appointments.models import Appointment
+
+        # Pending assignments: jobs of this client where no phlebotomist has been assigned.
+        pending_assignments = Job.objects.filter(client=user, assignment__isnull=True).count()
+
+        # New applications: appointments assigned to the client for which no jobs are created yet by the client.
+        new_applications = Appointment.objects.filter(client=user, jobs__isnull=True).count()
+
+        metrics = {
+            "pending_assignments": pending_assignments,
+            "new_applications": new_applications
+        }
+
+        # Recent Notifications
+        from communication.models import Notification
+        recent_notifications = Notification.objects.filter(user=user).order_by('-created_at')[:5]
+        
+        from django.utils import timezone
+        
+        def format_relative_time(dt):
+            if not dt:
+                return ""
+            now = timezone.now()
+            diff = now - dt
+            seconds = diff.total_seconds()
+            if seconds < 0:
+                seconds = 0
+            if seconds < 60:
+                return f"{int(seconds)}s"
+            minutes = seconds / 60
+            if minutes < 60:
+                return f"{int(minutes)}m"
+            hours = minutes / 60
+            if hours < 24:
+                return f"{int(hours)}h"
+            days = hours / 24
+            return f"{int(days)}d"
+
+        notifications_data = []
+        for notif in recent_notifications:
+            notifications_data.append({
+                "id": notif.id,
+                "title": notif.title,
+                "message": notif.message,
+                "type": notif.type,
+                "is_read": notif.is_read,
+                "created_at": notif.created_at.isoformat() if notif.created_at else None,
+                "time": format_relative_time(notif.created_at)
+            })
+
+        return Response({
+            "success": True,
+            "data": {
+                "user": user_data,
+                "metrics": metrics,
+                "recent_notifications": notifications_data
+            },
+            "message": "Client home data retrieved successfully."
+        }, status=status.HTTP_200_OK)

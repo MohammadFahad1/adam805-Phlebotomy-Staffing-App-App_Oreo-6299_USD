@@ -7,6 +7,7 @@ urlpatterns = [
     path('client/list/', views.JobListForClient.as_view(), name='client-job-list'),
     path('client/templates/', views.JobTemplateListForClient.as_view(), name='client-job-templates'),
     path('client/templates/<int:pk>/', views.JobTemplateDetailView.as_view(), name='client-job-template-detail'),
+    path('client/home/', views.ClientHomeAPIView.as_view(), name='client-home'),
     path('client/home/ratings-reviews/', views.ClientRatingsReviewsAPIView.as_view(), name='client-ratings-reviews'),
     
     # Phlebotomist Endpoints
