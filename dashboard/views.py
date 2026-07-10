@@ -1959,7 +1959,6 @@ class DisputeManagementDetailAPIView(NewAPIView):
 
 class PublicTermsOfServiceView(NewAPIView):
     permission_classes = [AllowAny]
-    authentication_classes = []
     serializer_class = TermsOfServiceSerializer
     queryset = TermsOfService.objects.none()
 
