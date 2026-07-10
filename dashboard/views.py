@@ -2,7 +2,8 @@ from phlebotomy_staffing.base import AutoPaginatedResponse, NewAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from dashboard import serializers
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from dashboard.serializers import TermsOfServiceSerializer
 from django.shortcuts import get_object_or_404
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -12,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework.views import APIView
 from jobs.models import Job, JobAssignment
+from dashboard.models import TermsOfService
 
 User = get_user_model()
 
@@ -1953,4 +1955,109 @@ class DisputeManagementDetailAPIView(NewAPIView):
         report.save()
         serializer = self.get_serializer(report)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PublicTermsOfServiceView(NewAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = TermsOfServiceSerializer
+    queryset = TermsOfService.objects.none()
+
+    @swagger_auto_schema(
+        tags=["Terms of Service"],
+        operation_description="Get the latest active Terms of Service / Service Agreement."
+    )
+    def get(self, request):
+        from dashboard.models import TermsOfService
+        latest_terms = TermsOfService.objects.order_by('-created_at').first()
+        if not latest_terms:
+            default_description = (
+                "Last Updated: January 2025\n"
+                "Legally Binding Document\n\n"
+                "1. Terms of Service\n"
+                "By using Phlebotomist services, you agree to provide accurate healthcare services in accordance with "
+                "professional standards and applicable regulations. This agreement establishes the framework for our partnership.\n\n"
+                "Key Points:\n"
+                "- Professional liability coverage required\n"
+                "- Compliance with HIPAA regulations\n"
+                "- 24-hour cancellation policy\n\n"
+                "2. Payment Policies\n"
+                "Payment terms are Net 15 days from service completion. Direct deposit is our preferred payment method, "
+                "with payments processed bi-weekly.\n\n"
+                "Average processing time: 2-3 business days\n\n"
+                "3. Legal Disclaimers\n"
+                "This agreement is governed by state healthcare regulations. Both parties acknowledge understanding of "
+                "their rights and responsibilities under this partnership."
+            )
+            latest_terms = TermsOfService.objects.create(
+                title="Primepath Service Agreement",
+                description=default_description
+            )
+        serializer = self.get_serializer(latest_terms)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AdminTermsOfServiceListCreateView(NewAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = TermsOfServiceSerializer
+    queryset = TermsOfService.objects.all()
+
+    @swagger_auto_schema(
+        tags=["Admin - Terms of Service Management"],
+        operation_description="List all Terms of Service entries."
+    )
+    def get(self, request):
+        from dashboard.models import TermsOfService
+        terms = TermsOfService.objects.all()
+        serializer = self.get_serializer(terms, many=True)
+        return AutoPaginatedResponse(serializer.data, request=request)
+
+    @swagger_auto_schema(
+        tags=["Admin - Terms of Service Management"],
+        request_body=TermsOfServiceSerializer,
+        operation_description="Create a new Terms of Service entry."
+    )
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AdminTermsOfServiceDetailView(NewAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = TermsOfServiceSerializer
+    queryset = TermsOfService.objects.all()
+
+    @swagger_auto_schema(
+        tags=["Admin - Terms of Service Management"],
+        operation_description="Retrieve a specific Terms of Service entry."
+    )
+    def get(self, request, pk):
+        from dashboard.models import TermsOfService
+        terms = get_object_or_404(TermsOfService, pk=pk)
+        serializer = self.get_serializer(terms)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        tags=["Admin - Terms of Service Management"],
+        request_body=TermsOfServiceSerializer,
+        operation_description="Update a specific Terms of Service entry."
+    )
+    def put(self, request, pk):
+        from dashboard.models import TermsOfService
+        terms = get_object_or_404(TermsOfService, pk=pk)
+        serializer = self.get_serializer(terms, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        tags=["Admin - Terms of Service Management"],
+        operation_description="Delete a specific Terms of Service entry."
+    )
+    def delete(self, request, pk):
+        from dashboard.models import TermsOfService
+        terms = get_object_or_404(TermsOfService, pk=pk)
+        terms.delete()
+        return Response({"detail": "Terms of Service entry deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 

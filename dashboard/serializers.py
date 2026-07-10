@@ -370,3 +370,16 @@ class ReportDetailSerializer(serializers.ModelSerializer):
             return 'Under Review'
         else:
             return 'Pending'
+
+
+class TermsOfServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        from dashboard.models import TermsOfService
+        model = TermsOfService
+        fields = [
+            'id',
+            'title',
+            'description',
+            'created_at',
+            'updated_at'
+        ]

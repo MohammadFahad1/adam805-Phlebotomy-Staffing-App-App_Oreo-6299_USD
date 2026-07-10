@@ -27,4 +27,9 @@ urlpatterns = [
     path('dispute-statistics/', views.DisputeManagementStatisticsAPIView.as_view(), name='dispute-statistics'),
     path('disputes/', views.DisputeManagementListAPIView.as_view(), name='dispute-list'),
     path('disputes/<int:report_id>/', views.DisputeManagementDetailAPIView.as_view(), name='dispute-detail'),
+
+    # Terms of Service Management
+    path('terms-of-service/', views.PublicTermsOfServiceView.as_view(), name='terms-of-service'),
+    path('admin/terms-of-service/', views.AdminTermsOfServiceListCreateView.as_view(), name='admin-terms-of-service-list-create'),
+    path('admin/terms-of-service/<int:pk>/', views.AdminTermsOfServiceDetailView.as_view(), name='admin-terms-of-service-detail'),
 ]

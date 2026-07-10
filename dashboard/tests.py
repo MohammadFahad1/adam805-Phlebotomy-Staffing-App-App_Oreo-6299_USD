@@ -452,4 +452,93 @@ class DisputeManagementDetailAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class TermsOfServiceAPITests(APITestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.phlebotomist_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+
+    def test_public_get_terms_of_service_creates_default(self):
+        url = reverse('terms-of-service')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], "Primepath Service Agreement")
+        self.assertIn("January 2025", response.data['description'])
+        self.assertIn("1. Terms of Service", response.data['description'])
+
+    def test_admin_create_terms_of_service(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('admin-terms-of-service-list-create')
+        payload = {
+            "title": "New Agreement",
+            "description": "Simple description text."
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['title'], "New Agreement")
+
+    def test_admin_list_terms_of_service(self):
+        from dashboard.models import TermsOfService
+        TermsOfService.objects.create(title="Existing", description="Some text")
+        
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('admin-terms-of-service-list-create')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.data['results']) >= 1)
+
+    def test_admin_update_terms_of_service(self):
+        from dashboard.models import TermsOfService
+        terms = TermsOfService.objects.create(title="Old Title", description="Old description")
+        
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('admin-terms-of-service-detail', kwargs={'pk': terms.id})
+        payload = {
+            "title": "New Title",
+            "description": "New description text."
+        }
+        response = self.client.put(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], "New Title")
+
+    def test_admin_delete_terms_of_service(self):
+        from dashboard.models import TermsOfService
+        terms = TermsOfService.objects.create(title="To Delete", description="To delete desc")
+        
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('admin-terms-of-service-detail', kwargs={'pk': terms.id})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TermsOfService.objects.filter(pk=terms.id).exists())
+
+    def test_permissions_denied_for_non_admin(self):
+        url_list = reverse('admin-terms-of-service-list-create')
+        
+        response = self.client.get(url_list)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        
+        self.client.force_authenticate(user=self.phlebotomist_user)
+        response = self.client.get(url_list)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+
 
