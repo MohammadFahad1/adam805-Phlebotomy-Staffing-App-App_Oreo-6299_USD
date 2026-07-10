@@ -102,8 +102,87 @@ class Payment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Payment for {self.appointment.patient.first_name} {self.appointment.patient.last_name} - {self.payment_status}"
+        if self.appointment:
+            return f"Payment for {self.appointment.patient.first_name} {self.appointment.patient.last_name} - {self.payment_status}"
+        elif self.job:
+            return f"Payment for Job {self.job.id} - {self.payment_status}"
+        return f"Payment {self.id} - {self.payment_status}"
 
     class Meta:
         ordering = ['-created_at']
+
+
+class PlatformSetting(models.Model):
+    key = models.CharField(max_length=100, unique=True, default='platform_fee_percentage')
+    value = models.DecimalField(max_digits=5, decimal_places=2, default=15.00, help_text="Fee percentage or amount value")
+    description = models.TextField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key}: {self.value}"
+
+
+class Wallet(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='wallet')
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Current available withdrawable balance")
+    total_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Total gross amount earned/paid in")
+    total_platform_fees = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Total platform fee charged")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Wallet for {self.user.email} - Balance: ${self.balance}"
+
+
+class WalletTransaction(models.Model):
+    CREDIT = 'credit'
+    DEBIT = 'debit'
+    TYPE_CHOICES = [
+        (CREDIT, 'Credit (Earnings/Refund/Deposit)'),
+        (DEBIT, 'Debit (Payment/Withdrawal/Fee)'),
+    ]
+    wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='transactions')
+    transaction_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    description = models.CharField(max_length=255)
+    reference_payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True)
+    reference_job = models.ForeignKey('jobs.Job', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.transaction_type.upper()} of ${self.amount} for {self.wallet.user.email}"
+
+
+class PayoutRequest(models.Model):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (APPROVED, 'Approved'),
+        (REJECTED, 'Rejected'),
+        (COMPLETED, 'Completed'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payout_requests')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
+    admin_notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Payout Request by {self.user.email} for ${self.amount} ({self.status})"
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=User)
+def create_user_wallet(sender, instance, created, **kwargs):
+    if created:
+        Wallet.objects.get_or_create(user=instance)
+
+
 

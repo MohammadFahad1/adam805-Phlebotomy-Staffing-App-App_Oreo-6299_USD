@@ -16,7 +16,6 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
-   url="https://3m5p7646-8001.inc1.devtunnels.ms"
 )
 
 urlpatterns = [

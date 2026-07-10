@@ -88,3 +88,29 @@ class AppointmentDetailSerializer(serializers.ModelSerializer):
             'special_requests', 'email_result_notification', 
             'sms_appointment_reminders', 'status', 'created_at', 'updated_at'
         ]
+
+
+class AppointmentUserIdSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+
+
+from appointments.models import Wallet, WalletTransaction, PayoutRequest
+
+class WalletTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WalletTransaction
+        fields = ['id', 'transaction_type', 'amount', 'platform_fee', 'description', 'created_at']
+
+class WalletBalanceSerializer(serializers.ModelSerializer):
+    transactions = WalletTransactionSerializer(many=True, read_only=True)
+    total_platform_charge = serializers.DecimalField(source='total_platform_fees', max_digits=12, decimal_places=2, read_only=True)
+    withdrawable_amount = serializers.DecimalField(source='balance', max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Wallet
+        fields = ['balance', 'total_earned', 'total_platform_charge', 'withdrawable_amount', 'transactions']
+
+class PayoutRequestCreateSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+

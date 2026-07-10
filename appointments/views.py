@@ -15,6 +15,89 @@ from appointments.models import Appointment, PatientProfile, ServicePackage, Ser
 
 User = get_user_model()
 
+import stripe
+from django.conf import settings
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+def create_appointment_checkout_session(appointment, request):
+    amount_cents = int(appointment.service_package.price * 100)
+    payment = Payment.objects.create(
+        appointment=appointment,
+        amount=appointment.service_package.price,
+        payment_status=Payment.PENDING
+    )
+    success_url = f"{settings.SITE_URL}/api/appointments/payment-success/?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{settings.SITE_URL}/api/appointments/payment-cancel/"
+    
+    session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {
+                    'name': f"Service: {appointment.service_package.name}",
+                    'description': f"Appointment booking on {appointment.appointment_date}",
+                },
+                'unit_amount': amount_cents,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            'appointment_id': str(appointment.id),
+            'payment_id': str(payment.id),
+            'type': 'appointment'
+        }
+    )
+    payment.stripe_payment_id = session.id
+    payment.save()
+    return session.url
+
+def create_job_checkout_session(job, request):
+    if job.pay_type == 'flat_rate':
+        amount = job.pay_rate
+    else:
+        amount = job.pay_rate * job.shift_duration
+
+    amount_cents = int(amount * 100)
+    payment = Payment.objects.create(
+        job=job,
+        amount=amount,
+        payment_status=Payment.PENDING
+    )
+    success_url = f"{settings.SITE_URL}/api/appointments/payment-success/?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{settings.SITE_URL}/api/appointments/payment-cancel/"
+
+    session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {
+                    'name': f"Job Posting: {job.title}",
+                    'description': f"Shift on {job.shift_date}",
+                },
+                'unit_amount': amount_cents,
+            },
+            'quantity': 1,
+        }],
+        mode='payment',
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            'job_id': str(job.id),
+            'payment_id': str(payment.id),
+            'type': 'job'
+        }
+    )
+    payment.stripe_payment_id = session.id
+    payment.save()
+    return session.url
+
+
 class ServicePackageListView(NewAPIView):
     serializer_class = serializers.ServicePackageListSerializer
     permission_classes = [AllowAny]
@@ -296,10 +379,13 @@ class CreateAppointmentView(NewAPIView):
 
         appointment = Appointment.objects.create(patient=patient, **appointment_fields)
 
+        checkout_url = create_appointment_checkout_session(appointment, request)
+
         return Response({
             'detail': 'Appointment created successfully',
             'appointment_id': appointment.id,
-            'status': appointment.status
+            'status': appointment.status,
+            'checkout_url': checkout_url
         }, status=status.HTTP_201_CREATED)
 
 class AppointmentListView(NewAPIView):
@@ -507,4 +593,253 @@ class AppointmentDetailView(NewAPIView):
         appointment = self.get_object()
         serializer = serializers.AppointmentDetailSerializer(appointment, context={'request': request})
         return Response(serializer.data)
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StripeWebhookView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, endpoint_secret
+            )
+        except ValueError as e:
+            return Response({'error': 'Invalid payload'}, status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.SignatureVerificationError as e:
+            return Response({'error': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            metadata = session.get('metadata', {})
+            payment_type = metadata.get('type')
+            payment_id = metadata.get('payment_id')
+
+            try:
+                payment = Payment.objects.get(id=payment_id)
+            except Payment.DoesNotExist:
+                return Response({'error': 'Payment not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+            payment.payment_status = Payment.PAID
+            payment.stripe_payment_id = session.id
+            payment.save()
+
+            if payment_type == 'appointment':
+                appointment_id = metadata.get('appointment_id')
+                try:
+                    appointment = Appointment.objects.get(id=appointment_id)
+                    appointment.status = Appointment.CONFIRMED
+                    appointment.save()
+                except Appointment.DoesNotExist:
+                    pass
+            elif payment_type == 'job':
+                job_id = metadata.get('job_id')
+                try:
+                    from jobs.models import Job
+                    job = Job.objects.get(id=job_id)
+                    job.status = Job.APPROVED
+                    job.save()
+                except Job.DoesNotExist:
+                    pass
+
+        return Response({'success': True}, status=status.HTTP_200_OK)
+
+
+class PaymentSuccessView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        session_id = request.query_params.get('session_id')
+        if session_id:
+            try:
+                session = stripe.checkout.Session.retrieve(session_id)
+                metadata = session.get('metadata', {})
+                payment_id = metadata.get('payment_id')
+                payment_type = metadata.get('type')
+                
+                try:
+                    payment = Payment.objects.get(id=payment_id)
+                    if payment.payment_status != Payment.PAID:
+                        payment.payment_status = Payment.PAID
+                        payment.stripe_payment_id = session_id
+                        payment.save()
+
+                        if payment_type == 'appointment':
+                            appointment_id = metadata.get('appointment_id')
+                            appointment = Appointment.objects.get(id=appointment_id)
+                            appointment.status = Appointment.CONFIRMED
+                            appointment.save()
+                        elif payment_type == 'job':
+                            from jobs.models import Job
+                            job_id = metadata.get('job_id')
+                            job = Job.objects.get(id=job_id)
+                            job.status = Job.APPROVED
+                            job.save()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        return Response({'message': 'Payment completed successfully.'}, status=status.HTTP_200_OK)
+
+
+class PaymentCancelView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({'message': 'Payment cancelled.'}, status=status.HTTP_200_OK)
+
+
+class ClientInvitePhlebotomistView(NewAPIView):
+    serializer_class = serializers.AppointmentUserIdSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def post(self, request, appointment_id):
+        """
+        **Client Invite Phlebotomist to Appointment**\n
+        Invites/assigns a phlebotomist to a client's appointment.\n
+        Auto-creates a Job in APPROVED status and a pending JobAssignment.\n
+        """
+        from jobs.models import Job, JobAssignment
+        import random
+
+        if request.user.role != User.CLIENT:
+            return Response({"detail": "Only clients can invite phlebotomists."}, status=status.HTTP_403_FORBIDDEN)
+
+        appointment = get_object_or_404(Appointment, id=appointment_id)
+        
+        # Verify ownership
+        if appointment.client != request.user:
+            return Response({"detail": "You do not own this appointment."}, status=status.HTTP_403_FORBIDDEN)
+
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        phlebotomist = get_object_or_404(User, id=user_id, role=User.PHLEBOTOMIST)
+
+        # Create a job with approved status
+        from django.utils import timezone
+        now_dt = timezone.now()
+        year_suffix = now_dt.strftime("%y")
+        
+        random_num = random.randint(100000, 999999)
+        job_id = f"JB-{year_suffix}-{random_num}"
+        while Job.objects.filter(id=job_id).exists():
+            random_num = random.randint(100000, 999999)
+            job_id = f"JB-{year_suffix}-{random_num}"
+
+        job_title = f"Appointment Service: {appointment.service_package.name}"
+        job_desc = appointment.special_requests or f"Service package {appointment.service_package.name} booking."
+        location = appointment.location
+        city = location.split(',')[0] if ',' in location else location
+        
+        shift_duration = 1
+        if appointment.end_time and appointment.start_time:
+            from datetime import datetime, date
+            dt1 = datetime.combine(date.today(), appointment.start_time)
+            dt2 = datetime.combine(date.today(), appointment.end_time)
+            diff = dt2 - dt1
+            shift_duration = max(1, int(diff.total_seconds() / 3600))
+            
+        job = Job.objects.create(
+            id=job_id,
+            appointment=appointment,
+            client=request.user,
+            title=job_title,
+            description=job_desc,
+            location=location,
+            city=city,
+            shift_date=appointment.appointment_date,
+            shift_start=appointment.start_time,
+            shift_end=appointment.end_time or appointment.start_time,
+            shift_duration=shift_duration,
+            pay_rate=appointment.service_package.price,
+            pay_type='flat_rate',
+            status=Job.APPROVED
+        )
+        
+        # Create a pending JobAssignment
+        job_assignment = JobAssignment.objects.create(
+            job=job,
+            phlebotomist=phlebotomist,
+            client=request.user,
+            signed_by_client=True,
+            status=JobAssignment.PENDING
+        )
+
+        return Response({"detail": "Phlebotomist invited successfully. Job created."}, status=status.HTTP_200_OK)
+
+
+class WalletBalanceView(NewAPIView):
+    serializer_class = serializers.WalletBalanceSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get']
+
+    @swagger_auto_schema(tags=["Wallet & Payments"])
+    def get(self, request):
+        """
+        **Get Wallet Balance & Transactions**\n
+        Returns the withdrawable balance, total gross earnings, total platform fees, and transaction history.
+        """
+        from appointments.models import Wallet
+        wallet, _ = Wallet.objects.get_or_create(user=request.user)
+        serializer = self.get_serializer(wallet)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PayoutRequestView(NewAPIView):
+    serializer_class = serializers.PayoutRequestCreateSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=["Wallet & Payments"])
+    def post(self, request):
+        """
+        **Request Payout**\n
+        Requests payout/withdrawal of a specific amount from the user's wallet.
+        """
+        from appointments.models import Wallet, WalletTransaction, PayoutRequest
+        from django.db import transaction
+
+        wallet, _ = Wallet.objects.get_or_create(user=request.user)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        amount = serializer.validated_data['amount']
+
+        if amount <= 0:
+            return Response({"detail": "Payout amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if wallet.balance < amount:
+            return Response({"detail": "Insufficient balance for this payout request."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            wallet.balance -= amount
+            wallet.save()
+
+            WalletTransaction.objects.create(
+                wallet=wallet,
+                transaction_type=WalletTransaction.DEBIT,
+                amount=amount,
+                description=f"Withdrawal request of ${amount}"
+            )
+
+            payout_req = PayoutRequest.objects.create(
+                user=request.user,
+                amount=amount,
+                status=PayoutRequest.PENDING
+            )
+
+        return Response({"detail": "Payout request submitted successfully.", "payout_request_id": payout_req.id}, status=status.HTTP_200_OK)
+
+
+
 

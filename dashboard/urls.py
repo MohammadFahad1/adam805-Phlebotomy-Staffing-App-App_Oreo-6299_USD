@@ -21,6 +21,7 @@ urlpatterns = [
     path('job-managements/<str:job_id>/', views.JobManagementDetailView.as_view(), name='job-management-detail'),
     path('job-managements/<str:job_id>/update-status/', views.JobStatusUpdateAPIView.as_view(), name='job-management-update-status'),
     path('job-managements/<str:job_id>/assign/', views.AssignPhlebotomistAPIView.as_view(), name='job-management-assign'),
+    path('appointment-managements/<int:appointment_id>/assign/', views.AdminAssignAppointmentUserView.as_view(), name='admin-assign-appointment-user'),
 
     # Dashboard Dispute Management
     path('dispute-statistics/', views.DisputeManagementStatisticsAPIView.as_view(), name='dispute-statistics'),

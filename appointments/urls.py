@@ -6,6 +6,12 @@ urlpatterns = [
     path('create/', views.CreateAppointmentView.as_view(), name='appointment-create'),
     path('list/', views.AppointmentListView.as_view(), name='appointment-list'),
     path('detail/<int:pk>/', views.AppointmentDetailView.as_view(), name='appointment-detail'),
+    path('stripe/webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook'),
+    path('payment-success/', views.PaymentSuccessView.as_view(), name='payment-success'),
+    path('payment-cancel/', views.PaymentCancelView.as_view(), name='payment-cancel'),
+    path('client/appointments/<int:appointment_id>/invite/', views.ClientInvitePhlebotomistView.as_view(), name='client-invite-phlebotomist'),
+    path('wallet/balance/', views.WalletBalanceView.as_view(), name='wallet-balance'),
+    path('wallet/payout-request/', views.PayoutRequestView.as_view(), name='wallet-payout-request'),
 #     path('update/<int:pk>/', views.AppointmentUpdateView.as_view(), name='appointment-update'),
 #     path('delete/<int:pk>/', views.AppointmentDeleteView.as_view(), name='appointment-delete'),
 ]

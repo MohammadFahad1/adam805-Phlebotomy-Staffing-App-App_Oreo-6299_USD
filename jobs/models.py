@@ -4,6 +4,7 @@ from django.conf import settings
 class Job(models.Model):
     DRAFT = 'draft'
     PENDING_APPROVAL = 'pending_approval'
+    PENDING_PAYMENT = 'pending_payment'
     APPROVED = 'approved'
     OPEN = 'open'
     IN_PROGRESS = 'in_progress'
@@ -12,6 +13,7 @@ class Job(models.Model):
     STATUS_CHOICES = [
         (DRAFT, 'Draft'),
         (PENDING_APPROVAL, 'Pending Approval'),
+        (PENDING_PAYMENT, 'Pending Payment'),
         (APPROVED, 'Approved'),
         (OPEN, 'Open'),
         (IN_PROGRESS, 'In Progress'),
@@ -45,7 +47,7 @@ class Job(models.Model):
     ]
     id = models.CharField(max_length=20, unique=True, primary_key=True)
     appointment = models.OneToOneField('appointments.Appointment', on_delete=models.CASCADE, related_name='jobs', null=True, blank=True)
-    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs') 
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs', null=True, blank=True) 
     title = models.CharField(max_length=255)
     description = models.TextField()
     location = models.TextField()
@@ -122,7 +124,7 @@ class JobAssignment(models.Model):
     ]
     job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name='assignment')
     phlebotomist = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='assignments')
-    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='client_assignments')
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='client_assignments', null=True, blank=True)
     contract_url = models.TextField(null=True, blank=True)
     signed_by_phlebotomist = models.BooleanField(default=False)
     signed_by_client = models.BooleanField(default=False)
@@ -174,5 +176,54 @@ class JobTemplate(models.Model):
 
     def __str__(self):
         return f"{self.id} - {self.title}"
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Job)
+def handle_job_completed(sender, instance, created, **kwargs):
+    if instance.status == Job.COMPLETED:
+        assignment = getattr(instance, 'assignment', None)
+        if assignment and assignment.status in ['active', 'pending']:
+            from appointments.models import Wallet, WalletTransaction, PlatformSetting
+            phlebotomist = assignment.phlebotomist
+            
+            existing_tx = WalletTransaction.objects.filter(
+                wallet=phlebotomist.wallet,
+                reference_job=instance,
+                transaction_type=WalletTransaction.CREDIT
+            ).exists()
+            
+            if not existing_tx:
+                setting, _ = PlatformSetting.objects.get_or_create(key='platform_fee_percentage')
+                fee_percentage = setting.value
+                
+                if instance.pay_type == Job.FLAT_RATE:
+                    gross = instance.pay_rate
+                else:
+                    gross = instance.pay_rate * instance.shift_duration
+                    
+                fee = gross * (fee_percentage / 100)
+                net = gross - fee
+                
+                wallet = phlebotomist.wallet
+                wallet.balance += net
+                wallet.total_earned += gross
+                wallet.total_platform_fees += fee
+                wallet.save()
+                
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    transaction_type=WalletTransaction.CREDIT,
+                    amount=net,
+                    platform_fee=fee,
+                    description=f"Earnings for completing job {instance.id}",
+                    reference_job=instance
+                )
+                
+                assignment.status = 'completed'
+                assignment.save()
+
 
 

@@ -282,3 +282,129 @@ class AppointmentAPITests(APITestCase):
         self.assertEqual(existing_patient.last_name, 'UpdatedLast')
         self.assertEqual(existing_patient.phone_number, '9999999999')
         self.assertEqual(existing_patient.gender, 'female')
+
+
+from appointments.models import Wallet, WalletTransaction, PayoutRequest
+
+class WalletAndPayoutTests(APITestCase):
+
+    def setUp(self):
+        # Create user profiles
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="password123",
+            full_name="Jane Client",
+            phone_number="1231231230",
+            gender="female",
+            dob="1992-01-01",
+            role=User.CLIENT
+        )
+        self.phleb_user = User.objects.create_user(
+            email="phleb2@example.com",
+            password="password123",
+            full_name="Bob Phleb",
+            phone_number="1234123412",
+            gender="male",
+            dob="1991-01-01",
+            role=User.PHLEBOTOMIST
+        )
+        self.admin_user = User.objects.create_user(
+            email="admin2@example.com",
+            password="password123",
+            full_name="Admin Boss",
+            phone_number="9876987698",
+            gender="male",
+            dob="1980-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.service_package = ServicePackage.objects.create(
+            name="Deluxe Package",
+            price=200.00,
+            is_active=True
+        )
+
+    def test_wallet_creation_on_user_save(self):
+        self.assertTrue(hasattr(self.client_user, 'wallet'))
+        self.assertTrue(hasattr(self.phleb_user, 'wallet'))
+        self.assertEqual(self.client_user.wallet.balance, 0)
+
+    def test_get_wallet_balance(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        url = reverse('wallet-balance')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(float(response.data['balance']), 0.0)
+
+    def test_payout_request_success(self):
+        wallet = self.phleb_user.wallet
+        wallet.balance = 500.00
+        wallet.save()
+
+        self.client.force_authenticate(user=self.phleb_user)
+        url = reverse('wallet-payout-request')
+        data = {'amount': 200.00}
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        wallet.refresh_from_db()
+        self.assertEqual(float(wallet.balance), 300.0)
+        self.assertEqual(PayoutRequest.objects.filter(user=self.phleb_user).count(), 1)
+
+    def test_payout_request_insufficient_balance(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        url = reverse('wallet-payout-request')
+        data = {'amount': 200.00}
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Insufficient balance", response.data['detail'])
+
+    def test_client_invite_phlebotomist(self):
+        patient = PatientProfile.objects.create(
+            first_name="Jane", last_name="Doe", email="jane@example.com",
+            phone_number="123", dob="1990-01-01", gender="female"
+        )
+        appointment = Appointment.objects.create(
+            patient=patient, service_package=self.service_package,
+            appointment_date=datetime.date.today(), start_time="09:00:00",
+            location_type="home", location="123 Street", client=self.client_user,
+            status=Appointment.CONFIRMED
+        )
+
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-invite-phlebotomist', kwargs={'appointment_id': appointment.id})
+        data = {'user_id': self.phleb_user.id}
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        from jobs.models import Job, JobAssignment
+        self.assertTrue(Job.objects.filter(appointment=appointment).exists())
+        job = Job.objects.get(appointment=appointment)
+        self.assertEqual(job.status, Job.APPROVED)
+        self.assertTrue(JobAssignment.objects.filter(job=job, phlebotomist=self.phleb_user).exists())
+
+    def test_admin_assign_phlebotomist(self):
+        patient = PatientProfile.objects.create(
+            first_name="Jane", last_name="Doe", email="jane@example.com",
+            phone_number="123", dob="1990-01-01", gender="female"
+        )
+        appointment = Appointment.objects.create(
+            patient=patient, service_package=self.service_package,
+            appointment_date=datetime.date.today(), start_time="09:00:00",
+            location_type="home", location="123 Street", client=self.client_user,
+            status=Appointment.CONFIRMED
+        )
+
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('admin-assign-appointment-user', kwargs={'appointment_id': appointment.id})
+        data = {'user_id': self.phleb_user.id}
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        from jobs.models import Job, JobAssignment
+        job = Job.objects.get(appointment=appointment)
+        self.assertEqual(job.status, Job.IN_PROGRESS)
+        assignment = JobAssignment.objects.get(job=job)
+        self.assertEqual(assignment.status, JobAssignment.ACTIVE)
+

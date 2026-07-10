@@ -1,5 +1,6 @@
 from django.contrib import admin
-from appointments.models import ServicePackage, ServicePackageFeature, PatientProfile, Appointment, Payment
+from appointments.models import ServicePackage, ServicePackageFeature, PatientProfile, Appointment, Payment, PlatformSetting, Wallet, WalletTransaction, PayoutRequest
+from django.db import transaction
 
 # --- Tabular Inlines ---
 class ServicePackageFeatureInline(admin.TabularInline):
@@ -127,5 +128,50 @@ class PaymentAdmin(admin.ModelAdmin):
     @admin.display(ordering='appointment__patient__first_name', description='Patient Name')
     def get_patient_name(self, obj):
         return f"{obj.appointment.patient.first_name} {obj.appointment.patient.last_name}"
+
+
+@admin.register(PlatformSetting)
+class PlatformSettingAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value', 'updated_at')
+    search_fields = ('key',)
+
+
+class WalletTransactionInline(admin.TabularInline):
+    model = WalletTransaction
+    extra = 0
+    readonly_fields = ('transaction_type', 'amount', 'platform_fee', 'description', 'reference_payment', 'reference_job', 'created_at')
+    can_delete = False
+
+
+@admin.register(Wallet)
+class WalletAdmin(admin.ModelAdmin):
+    list_display = ('user', 'balance', 'total_earned', 'total_platform_fees', 'updated_at')
+    search_fields = ('user__email', 'user__full_name')
+    readonly_fields = ('user', 'balance', 'total_earned', 'total_platform_fees')
+    inlines = [WalletTransactionInline]
+
+
+@admin.register(PayoutRequest)
+class PayoutRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'amount', 'status', 'created_at', 'updated_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('user__email', 'user__full_name')
+    readonly_fields = ('user', 'amount', 'created_at', 'updated_at')
+
+    def save_model(self, request, obj, form, change):
+        if change and 'status' in form.changed_data:
+            if obj.status == PayoutRequest.REJECTED:
+                with transaction.atomic():
+                    wallet = obj.user.wallet
+                    wallet.balance += obj.amount
+                    wallet.save()
+                    WalletTransaction.objects.create(
+                        wallet=wallet,
+                        transaction_type=WalletTransaction.CREDIT,
+                        amount=obj.amount,
+                        description=f"Refund for rejected payout request #{obj.id}"
+                    )
+        super().save_model(request, obj, form, change)
+
 
 

@@ -1565,6 +1565,94 @@ class AssignPhlebotomistAPIView(NewAPIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AdminAssignAppointmentUserView(NewAPIView):
+    serializer_class = serializers.UserIdSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['post']
+
+    @swagger_auto_schema(tags=["Dashboard - Appointment Management"])
+    def post(self, request, appointment_id):
+        """
+        **Admin Assign User (Client/Phlebotomist) to Appointment**\n
+        Assigns either a Client or a Phlebotomist to a confirmed appointment.\n
+        If user is client: updates appointment's client field.\n
+        If user is phlebotomist: creates approved job and assigns/auto-accepts it.\n
+        """
+        from appointments.models import Appointment
+        from jobs.models import Job, JobAssignment
+        import random
+        
+        appointment = get_object_or_404(Appointment, id=appointment_id)
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        assignee = get_object_or_404(User, id=user_id)
+        
+        if assignee.role == User.CLIENT:
+            appointment.client = assignee
+            appointment.save()
+            return Response({"detail": "Client assigned to appointment successfully."}, status=status.HTTP_200_OK)
+            
+        elif assignee.role == User.PHLEBOTOMIST:
+            # Create a job with approved status
+            from django.utils import timezone
+            now_dt = timezone.now()
+            year_suffix = now_dt.strftime("%y")
+            
+            random_num = random.randint(100000, 999999)
+            job_id = f"JB-{year_suffix}-{random_num}"
+            while Job.objects.filter(id=job_id).exists():
+                random_num = random.randint(100000, 999999)
+                job_id = f"JB-{year_suffix}-{random_num}"
+
+            job_title = f"Appointment Service: {appointment.service_package.name}"
+            job_desc = appointment.special_requests or f"Service package {appointment.service_package.name} booking."
+            location = appointment.location
+            city = location.split(',')[0] if ',' in location else location
+            
+            shift_duration = 1
+            if appointment.end_time and appointment.start_time:
+                from datetime import datetime, date
+                dt1 = datetime.combine(date.today(), appointment.start_time)
+                dt2 = datetime.combine(date.today(), appointment.end_time)
+                diff = dt2 - dt1
+                shift_duration = max(1, int(diff.total_seconds() / 3600))
+                
+            job = Job.objects.create(
+                id=job_id,
+                appointment=appointment,
+                client=appointment.client,
+                title=job_title,
+                description=job_desc,
+                location=location,
+                city=city,
+                shift_date=appointment.appointment_date,
+                shift_start=appointment.start_time,
+                shift_end=appointment.end_time or appointment.start_time,
+                shift_duration=shift_duration,
+                pay_rate=appointment.service_package.price,
+                pay_type='flat_rate',
+                status=Job.APPROVED
+            )
+            
+            job_assignment = JobAssignment.objects.create(
+                job=job,
+                phlebotomist=assignee,
+                client=appointment.client,
+                signed_by_phlebotomist=True,
+                status=JobAssignment.ACTIVE
+            )
+            
+            job.status = Job.IN_PROGRESS
+            job.save()
+            
+            return Response({"detail": "Phlebotomist assigned and job created successfully."}, status=status.HTTP_200_OK)
+            
+        else:
+            return Response({"detail": "Invalid user role for assignment."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 # Dispute management views
 class DisputeManagementStatisticsAPIView(NewAPIView):
     serializer_class = EmptySerializer

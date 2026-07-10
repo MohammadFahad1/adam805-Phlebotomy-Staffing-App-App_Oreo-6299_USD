@@ -156,6 +156,8 @@ class JobCreateView(NewAPIView):
             delta = datetime.datetime.combine(datetime.date.min, shift_end) - datetime.datetime.combine(datetime.date.min, shift_start)
             shift_duration = int(delta.total_seconds() // 3600)
 
+        from appointments.views import create_job_checkout_session
+
         job = Job.objects.create(
             client=request.user,
             title=data['title'].strip(),
@@ -170,13 +172,16 @@ class JobCreateView(NewAPIView):
             pay_type=data['pay_type'],
             pay_rate=pay_rate,
             job_type=data['job_type'],
-            status=Job.PENDING_APPROVAL,
+            status=Job.PENDING_PAYMENT,
         )
+
+        checkout_url = create_job_checkout_session(job, request)
 
         return Response(
             {
-                "message": "Job posted successfully and is pending admin approval.",
+                "message": "Job posted successfully. Please complete the payment.",
                 "job_id": job.id,
+                "checkout_url": checkout_url
             },
             status=status.HTTP_201_CREATED,
         )
