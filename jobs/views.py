@@ -2519,4 +2519,133 @@ class ClientAppointmentDetailAPIView(APIView):
             "message": "Appointment details retrieved successfully."
         }, status=status.HTTP_200_OK)
 
+class ClientFindPhlebotomistAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=["App (Client) - Home Section"])
+    def get(self, request):
+        """
+        **Find Phlebotomists**
+        Find phlebotomists matching a job, or list all phlebotomists with their availability status.
+
+        Required Parameters:
+            - job_id: ID of the job to find matching phlebotomists for
+            - Or no job_id to list all phlebotomists
+
+        Optional Parameters:
+            - page, page_size for pagination
+
+        Returns:
+            List of phlebotomists with their availability status and match percentage (if job_id is provided)
+        """
+        from authentication.models import User, PhlebotomistAvailability
+        from authentication.serializers import UserSerializer
+        from jobs.models import Job
+        import datetime
+        from django.utils import timezone
+        
+        job_id = request.query_params.get('job_id') or request.query_params.get('job')
+        
+        # Clean job_id and job from request.GET so AutoPaginatedResponse doesn't filter on them
+        qd = request.GET.copy()
+        job_id_removed = qd.pop('job_id', None)
+        job_removed = qd.pop('job', None)
+        if job_id_removed or job_removed:
+            request._request.GET = qd
+            if hasattr(request, '_query_params'):
+                try:
+                    delattr(request, '_query_params')
+                except AttributeError:
+                    pass
+
+        job = None
+        if job_id:
+            job = Job.objects.filter(id=job_id).first()
+
+        phlebotomists = User.objects.filter(role=User.PHLEBOTOMIST, is_active=True)
+        
+        data_list = []
+        today = datetime.date.today()
+
+        for phleb_user in phlebotomists:
+            profile = getattr(phleb_user, 'phlebotomist_profile', None)
+            if not profile:
+                continue
+
+            # Check general availability status (any future slots with is_available=True)
+            has_future_avail = PhlebotomistAvailability.objects.filter(
+                phlebotomist=profile,
+                date__gte=today,
+                is_available=True
+            ).exists()
+            availability_status = "Available" if has_future_avail else "Unavailable"
+
+            # Serialize user data
+            user_data = UserSerializer(phleb_user, context={'request': request}).data
+            
+            # Flatten profile fields at root for AutoPaginatedResponse generic search/filtering/ordering
+            user_data['full_name'] = phleb_user.full_name
+            user_data['years_of_experience'] = profile.years_of_experience
+            user_data['specialty'] = profile.specialty
+            user_data['service_area'] = profile.service_area
+            user_data['availability_status'] = availability_status
+
+            if job:
+                # Calculate match score
+                score = 0.0
+                
+                # 1. Availability overlap
+                avail_slots = PhlebotomistAvailability.objects.filter(
+                    phlebotomist=profile,
+                    date=job.shift_date,
+                    is_available=True
+                )
+                
+                date_match = False
+                time_match = False
+                for slot in avail_slots:
+                    date_match = True
+                    # Check overlap/containment
+                    if slot.start_time <= job.shift_start and slot.end_time >= job.shift_end:
+                        time_match = True
+                        break
+
+                if time_match:
+                    score += 3.0
+                elif date_match:
+                    score += 1.0
+                
+                # 2. Specialty matching
+                spec = profile.specialty
+                pref = job.professional_type
+                if pref == Job.CERTIFIED_PHLEBOTOMIST and spec == 'general_phlebotomy':
+                    score += 2.0
+                elif pref in [Job.REGISTERED_NURSE, Job.LICENSED_PRACTICAL_NURSE] and spec == 'medical_nurse':
+                    score += 2.0
+                
+                # 3. Experience bonus (minor weight to break ties)
+                score += min(profile.years_of_experience * 0.1, 1.0)
+
+                # Max base score is 5.0 (excluding experience bonus)
+                match_percentage = min(int((score / 5.0) * 100), 100)
+                
+                user_data['match_score'] = round(score, 2)
+                user_data['match_percentage'] = match_percentage
+                user_data['ordering_score'] = score
+            else:
+                user_data['match_score'] = None
+                user_data['match_percentage'] = None
+                user_data['ordering_score'] = 1.0 if has_future_avail else 0.0
+
+            data_list.append(user_data)
+
+        # If matching against a job, sort by match score descending by default
+        if job:
+            data_list.sort(key=lambda x: x['ordering_score'], reverse=True)
+        else:
+            # Default sort available phlebotomists first
+            data_list.sort(key=lambda x: x['ordering_score'], reverse=True)
+
+        return AutoPaginatedResponse(data_list, request=request)
+
 

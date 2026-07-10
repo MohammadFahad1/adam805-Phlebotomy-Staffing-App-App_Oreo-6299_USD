@@ -12,6 +12,7 @@ urlpatterns = [
     path('client/appointments/', views.ClientAppointmentListForHome.as_view(), name='client-appointments'),
     path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),
     path('client/appointments/<int:pk>/', views.ClientAppointmentDetailAPIView.as_view(), name='client-appointment-detail'),
+    path('client/phlebotomists/find/', views.ClientFindPhlebotomistAPIView.as_view(), name='client-find-phlebotomist'),
     
     # Common Endpoints
     path('report-user/', views.ReportUserAPIView.as_view(), name='report-user'),

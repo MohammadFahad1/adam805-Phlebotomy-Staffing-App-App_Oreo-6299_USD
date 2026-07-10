@@ -1583,9 +1583,133 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertTrue(data['success'])
         self.assertEqual(data['data']['id'], self.appointment.id)
         self.assertEqual(data['data']['patient']['first_name'], "John")
-        self.assertTrue(data['data']['patient']['patient_id'].endswith(f"-{self.patient.id:03d}"))
+        self.assertTrue(data['data']['patient']['patient_id'].endswith(f"-{self.patient.id:04d}"))
         self.assertEqual(data['data']['service_details']['name'], "General Blood Test")
         self.assertEqual(data['data']['location']['type'], "Patient's Home")
+
+    def test_client_find_phlebotomist_no_job(self):
+        from authentication.models import Phlebotomist, PhlebotomistAvailability
+        
+        # Create a phlebotomist user
+        phleb_user = User.objects.create_user(
+            email="phleb_test_find@example.com",
+            password="SecurePassword123!",
+            full_name="John Phlebotomist",
+            phone_number="1212121212",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        
+        profile = Phlebotomist.objects.create(
+            user=phleb_user,
+            license_number="LIC-12345",
+            license_expiry_date="2028-01-01",
+            years_of_experience=4,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Dallas"
+        )
+        
+        # Add availability slot
+        PhlebotomistAvailability.objects.create(
+            phlebotomist=profile,
+            day="Monday",
+            date=datetime.date.today(),
+            start_time=datetime.time(9, 0),
+            end_time=datetime.time(17, 0),
+            is_available=True
+        )
+
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-find-phlebotomist')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertIn('pagination', data)
+        self.assertIn('results', data)
+        
+        # Find our created phlebotomist in results
+        results = data['results']
+        phleb_data = next((item for item in results if item['id'] == phleb_user.id), None)
+        self.assertIsNotNone(phleb_data)
+        self.assertEqual(phleb_data['availability_status'], "Available")
+        self.assertEqual(phleb_data['full_name'], "John Phlebotomist")
+
+    def test_client_find_phlebotomist_with_job(self):
+        from authentication.models import Phlebotomist, PhlebotomistAvailability
+        import datetime
+
+        # Phlebotomist 1: Perfect match (matching specialty and availability)
+        phleb_user_1 = User.objects.create_user(
+            email="phleb1_test_find@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Match",
+            phone_number="1111111111",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        
+        # Job has professional_type = Job.CERTIFIED_PHLEBOTOMIST (CP)
+        # Specialty general_phlebotomy matches CP
+        profile_1 = Phlebotomist.objects.create(
+            user=phleb_user_1,
+            license_number="LIC-11111",
+            license_expiry_date="2028-01-01",
+            years_of_experience=10,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Dallas"
+        )
+        
+        # Availability overlaps job shift time (14:30 - 15:00)
+        PhlebotomistAvailability.objects.create(
+            phlebotomist=profile_1,
+            day="Monday",
+            date=self.job.shift_date,
+            start_time=datetime.time(13, 0),
+            end_time=datetime.time(16, 0),
+            is_available=True
+        )
+
+        # Phlebotomist 2: Poor match (no matching availability, different specialty)
+        phleb_user_2 = User.objects.create_user(
+            email="phleb2_test_find@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb NoMatch",
+            phone_number="2222222222",
+            gender="female",
+            dob="1992-02-02",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+        profile_2 = Phlebotomist.objects.create(
+            user=phleb_user_2,
+            license_number="LIC-22222",
+            license_expiry_date="2028-01-01",
+            years_of_experience=1,
+            specialty="medical_nurse",
+            work_preference="part_time",
+            service_area="Dallas"
+        )
+
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-find-phlebotomist')
+        response = self.client.get(f"{url}?job_id={self.job.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        
+        results = data['results']
+        self.assertTrue(len(results) >= 2)
+        self.assertEqual(results[0]['id'], phleb_user_1.id)
+        self.assertTrue(results[0]['match_percentage'] > results[1]['match_percentage'])
 
 
 
