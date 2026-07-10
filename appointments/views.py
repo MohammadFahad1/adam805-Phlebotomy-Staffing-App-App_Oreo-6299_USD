@@ -602,6 +602,7 @@ from django.utils.decorators import method_decorator
 class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(tags=["Stripe Webhook - Don't use these."])
     def post(self, request):
         payload = request.body
         sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
@@ -655,6 +656,7 @@ class StripeWebhookView(APIView):
 class PaymentSuccessView(APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(tags=["Stripe Webhook - Don't use these."])
     def get(self, request):
         session_id = request.query_params.get('session_id')
         if session_id:
@@ -692,6 +694,7 @@ class PaymentSuccessView(APIView):
 class PaymentCancelView(APIView):
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(tags=["Stripe Webhook - Don't use these."])
     def get(self, request):
         return Response({'message': 'Payment cancelled.'}, status=status.HTTP_200_OK)
 
