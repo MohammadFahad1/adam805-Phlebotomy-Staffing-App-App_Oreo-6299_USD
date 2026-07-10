@@ -2654,13 +2654,10 @@ class ClientAppointmentTrendsAPIView(APIView):
     @swagger_auto_schema(tags=["App (Client) - Home Section"])
     def get(self, request):
         """
-        **Appointment Trends & Analytics**
-        Get appointment trends, staff performance, and service demand analytics for the client.
-
-        Returns:
-            Analytics details including trends, peak day, staff performance, and service demand.
-
-        **Response Example:**
+        **Appointment Trends & Analytics**\n
+        Get appointment trends, staff performance, and service demand analytics for the client.\n
+        
+        **Response Example:**\n
         ```json
         {
             "success": True,
@@ -2806,5 +2803,104 @@ class ClientAppointmentTrendsAPIView(APIView):
             },
             "message": "Appointment trends and analytics retrieved successfully."
         }, status=status.HTTP_200_OK)
+
+class ClientJobHistoryAndBillingAPIView(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(tags=["App (Client) - Job History Section"])
+    def get(self, request):
+        """
+        **Job History & Billing**\n
+        Get history and billing details of jobs posted by the logged-in client.
+
+        **Response Example:**\n
+        ```json
+        {
+            "success": true,
+            "data": [
+                {
+                    "job_id": "#JB-2025-0315",
+                    "title": "Blood Draw - Routine",
+                    "phlebotomist_name": "Dr. Samiul Chen",
+                    "date_formatted": "Jan 15, 2024 - 10:30 AM",
+                    "status": "Paid",
+                    "price": 85.00,
+                    "price_formatted": "$85.00",
+                    "invoice_url": "/api/jobs/JB-2025-0315/invoice/",
+                    "has_pay_now_btn": False,
+                    "has_view_details_btn": True
+                }
+            ],
+            "message": "Job history and billing details retrieved successfully."
+        }
+        ```
+        """
+        from jobs.models import Job
+        
+        tab = request.query_params.get('filter', 'all').lower()
+        
+        # Clean filter from request.GET so AutoPaginatedResponse doesn't filter on it
+        qd = request.GET.copy()
+        if 'filter' in qd:
+            qd.pop('filter', None)
+            request._request.GET = qd
+            if hasattr(request, '_query_params'):
+                try:
+                    delattr(request, '_query_params')
+                except AttributeError:
+                    pass
+
+        user = request.user
+        jobs = Job.objects.filter(client=user).order_by('-created_at')
+
+        data_list = []
+        for job in jobs:
+            is_pending = job.status in [Job.PENDING_PAYMENT, Job.DRAFT, Job.PENDING_APPROVAL]
+            payment_status = "Pending" if is_pending else "Paid"
+            
+            if tab == 'paid' and payment_status != 'Paid':
+                continue
+            if tab == 'pending' and payment_status != 'Pending':
+                continue
+
+            date_formatted = ""
+            if job.shift_date and job.shift_start:
+                date_formatted = f"{job.shift_date.strftime('%b %d, %Y')} - {job.shift_start.strftime('%I:%M %p').lstrip('0')}"
+
+            phleb_name = "Unassigned"
+            if hasattr(job, 'assignment') and job.assignment:
+                phleb_name = job.assignment.phlebotomist.full_name
+
+            item = {
+                "job_id": f"#{job.id}",
+                "title": job.title,
+                "phlebotomist_name": phleb_name,
+                "date_formatted": date_formatted,
+                "status": payment_status,
+                "price": float(job.pay_rate),
+                "price_formatted": f"${job.pay_rate}",
+                "invoice_url": request.build_absolute_uri(f"/api/jobs/{job.id}/invoice/"),
+                "has_pay_now_btn": is_pending,
+                "has_view_details_btn": not is_pending
+            }
+
+            data_list.append(item)
+
+        # Merge with fallback mock items to ensure the UI looks exactly like the mockup image
+        fallbacks = []
+
+        for fb in fallbacks:
+            if tab == 'paid' and fb['status'] != 'Paid':
+                continue
+            if tab == 'pending' and fb['status'] != 'Pending':
+                continue
+            # Deduplicate by title if already present in data_list (optional, but keep it simple)
+            data_list.append(fb)
+
+        return AutoPaginatedResponse(data_list, request=request)
+
+
+
+
 
 

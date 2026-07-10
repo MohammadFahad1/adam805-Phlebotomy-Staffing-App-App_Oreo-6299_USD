@@ -1727,6 +1727,31 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertEqual(len(data['data']['trends']), 7)
         self.assertTrue(any(sp['name'] == "Sarah Johnson" for sp in data['data']['staff_performance']))
         self.assertTrue(any(sd['service_name'] == "Blood Draws" for sd in data['data']['service_demand']))
+    def test_client_jobs_history_billing_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-jobs-history-billing')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertIn('results', data)
+        self.assertTrue(len(data['results']) > 0)
+        self.assertTrue(data['results'][0]['invoice_url'].startswith('http'))
+
+        
+        # Test filters
+        response_paid = self.client.get(f"{url}?filter=paid")
+        self.assertEqual(response_paid.status_code, status.HTTP_200_OK)
+        for item in response_paid.data['results']:
+            self.assertEqual(item['status'], "Paid")
+            
+        response_pending = self.client.get(f"{url}?filter=pending")
+        self.assertEqual(response_pending.status_code, status.HTTP_200_OK)
+        for item in response_pending.data['results']:
+            self.assertEqual(item['status'], "Pending")
+
+
 
 
 

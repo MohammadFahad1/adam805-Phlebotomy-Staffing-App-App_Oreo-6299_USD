@@ -10,6 +10,8 @@ urlpatterns = [
     path('client/home/', views.ClientHomeAPIView.as_view(), name='client-home'),
     path('client/home/ratings-reviews/', views.ClientRatingsReviewsAPIView.as_view(), name='client-ratings-reviews'),
     path('client/home/analytics/', views.ClientAppointmentTrendsAPIView.as_view(), name='client-analytics-trends'),
+    path('client/jobs/history-billing/', views.ClientJobHistoryAndBillingAPIView.as_view(), name='client-jobs-history-billing'),
+
     path('client/appointments/', views.ClientAppointmentListForHome.as_view(), name='client-appointments'),
     path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),
     path('client/appointments/<int:pk>/', views.ClientAppointmentDetailAPIView.as_view(), name='client-appointment-detail'),
