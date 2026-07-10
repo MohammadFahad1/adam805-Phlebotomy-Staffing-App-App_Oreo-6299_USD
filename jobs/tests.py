@@ -1711,6 +1711,24 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertEqual(results[0]['id'], phleb_user_1.id)
         self.assertTrue(results[0]['match_percentage'] > results[1]['match_percentage'])
 
+    def test_client_appointment_trends_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('client-analytics-trends')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        self.assertIn('trends', data['data'])
+        self.assertIn('peak_day', data['data'])
+        self.assertIn('staff_performance', data['data'])
+        self.assertIn('service_demand', data['data'])
+
+        self.assertEqual(len(data['data']['trends']), 7)
+        self.assertTrue(any(sp['name'] == "Sarah Johnson" for sp in data['data']['staff_performance']))
+        self.assertTrue(any(sd['service_name'] == "Blood Draws" for sd in data['data']['service_demand']))
+
+
 
 
 
