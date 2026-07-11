@@ -32,7 +32,12 @@ class UserAdmin(BaseUserAdmin):
         ('Security / OTP', {'fields': ('otp', 'otp_created_at', 'forgot_password_token'), 'classes': ('collapse',)}),
         ('Important Dates', {'fields': ('last_login', 'created_at', 'updated_at')}),
     )
-    
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'password', 'full_name', 'phone_number', 'role'),
+        }),
+    )
     # Read-only fields that shouldn't be manually edited directly in those formats
     readonly_fields = ('created_at', 'updated_at', 'otp_created_at')
 
