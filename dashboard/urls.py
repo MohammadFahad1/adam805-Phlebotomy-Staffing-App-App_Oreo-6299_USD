@@ -32,4 +32,8 @@ urlpatterns = [
     path('terms-of-service/', views.PublicTermsOfServiceView.as_view(), name='terms-of-service'),
     path('admin/terms-of-service/', views.AdminTermsOfServiceListCreateView.as_view(), name='admin-terms-of-service-list-create'),
     path('admin/terms-of-service/<int:pk>/', views.AdminTermsOfServiceDetailView.as_view(), name='admin-terms-of-service-detail'),
+
+    # Reviews Moderation
+    path('reviews/', views.DashboardReviewsListAPIView.as_view(), name='dashboard-reviews-list'),
+    path('reviews/<int:pk>/', views.DashboardReviewDetailAPIView.as_view(), name='dashboard-reviews-detail'),
 ]

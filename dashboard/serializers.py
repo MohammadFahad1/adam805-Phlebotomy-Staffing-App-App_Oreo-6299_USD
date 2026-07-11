@@ -383,3 +383,26 @@ class TermsOfServiceSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
+
+class ReviewSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.CharField(source='reviewer.full_name', read_only=True)
+    reviewed_name = serializers.CharField(source='reviewed.full_name', read_only=True)
+    reviewer_role = serializers.CharField(source='reviewer.role', read_only=True)
+    reviewed_role = serializers.CharField(source='reviewed.role', read_only=True)
+
+    class Meta:
+        from communication.models import Review
+        model = Review
+        fields = [
+            'id', 'job', 'reviewer', 'reviewer_name', 'reviewer_role',
+            'reviewed', 'reviewed_name', 'reviewed_role', 'rating',
+            'comment', 'status', 'created_at'
+        ]
+
+class ReviewStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        from communication.models import Review
+        model = Review
+        fields = [
+            'status'
+        ]

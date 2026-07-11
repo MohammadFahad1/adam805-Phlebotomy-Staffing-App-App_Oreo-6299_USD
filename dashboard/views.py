@@ -1956,7 +1956,6 @@ class DisputeManagementDetailAPIView(NewAPIView):
         serializer = self.get_serializer(report)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class PublicTermsOfServiceView(NewAPIView):
     permission_classes = [AllowAny]
     serializer_class = TermsOfServiceSerializer
@@ -2006,7 +2005,6 @@ class PublicTermsOfServiceView(NewAPIView):
         serializer = self.get_serializer(latest_terms)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
 class AdminTermsOfServiceListCreateView(NewAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = TermsOfServiceSerializer
@@ -2032,7 +2030,6 @@ class AdminTermsOfServiceListCreateView(NewAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 
 class AdminTermsOfServiceDetailView(NewAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -2071,4 +2068,188 @@ class AdminTermsOfServiceDetailView(NewAPIView):
         terms = get_object_or_404(TermsOfService, pk=pk)
         terms.delete()
         return Response({"detail": "Terms of Service entry deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+
+# Communication and Reviews Moderation
+class DashboardReviewsListAPIView(NewAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = serializers.ReviewSerializer
+    
+    def get_queryset(self):
+        from communication.models import Review
+        return Review.objects.all()
+
+    @swagger_auto_schema(tags=["Dashboard - Communication and Reviews Moderation"])
+    def get(self, request):
+        """
+        **Get all reviews.**\n
+
+        **Request**:
+        ```
+        curl -X GET "http://localhost:8000/dashboard/reviews/" \
+        -H "Authorization: Bearer <token>"
+        ```
+
+        **Response**:
+        
+        ```
+        {
+            "id": 1,
+            "job": 1,
+            "reviewer": 1,
+            "reviewer_name": "John Doe",
+            "reviewer_role": "client",
+            "reviewed": 2,
+            "reviewed_name": "Jane Smith",
+            "reviewed_role": "phlebotomist",
+            "rating": 5,
+            "comment": "Great job!",
+            "status": "pending",
+            "created_at": "2025-09-15T10:00:00.000Z"
+        }
+        ```
+
+        **Note**:
+        - Only pending reviews will be shown
+        - Reviews will be ordered by pending first, then by created_at
+        """
+        from django.db.models import Case, When, Value, IntegerField
+        from communication.models import Review
+        
+        reviews = Review.objects.annotate(
+            is_pending=Case(
+                When(status=Review.PENDING, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField()
+            )
+        ).order_by('-is_pending', '-created_at')
+        
+        serializer = self.get_serializer(reviews, many=True)
+        return AutoPaginatedResponse(serializer.data, request=request)
+
+class DashboardReviewDetailAPIView(NewAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = serializers.ReviewSerializer
+    http_method_names = ['get', 'delete']
+    
+    def get_queryset(self):
+        from communication.models import Review
+        return Review.objects.all()
+
+    @swagger_auto_schema(tags=["Dashboard - Communication and Reviews Moderation"])
+    def get(self, request, pk):
+        """
+        **Get a specific review.**\n
+
+        **Request**:
+        ```
+        curl -X GET "http://localhost:8000/dashboard/reviews/<pk>/" \
+        -H "Authorization: Bearer <token>"
+        ```
+
+        **Response**:
+        
+        ```
+        {
+            "id": 1,
+            "job": 1,
+            "reviewer": 1,
+            "reviewer_name": "John Doe",
+            "reviewer_role": "client",
+            "reviewed": 2,
+            "reviewed_name": "Jane Smith",
+            "reviewed_role": "phlebotomist",
+            "rating": 5,
+            "comment": "Great job!",
+            "status": "pending",
+            "created_at": "2025-09-15T10:00:00.000Z"
+        }
+        ```
+
+        **Note**:
+        - Only pending reviews will be shown
+        - Reviews will be ordered by pending first, then by created_at
+        """
+        from communication.models import Review
+        review = get_object_or_404(Review, pk=pk)
+        serializer = self.get_serializer(review)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(tags=["Dashboard - Communication and Reviews Moderation"])
+    def delete(self, request, pk):
+        """
+        **Delete a specific review.**\n
+
+        **Request**:
+        ```
+        curl -X DELETE "http://localhost:8000/dashboard/reviews/<pk>/" \
+        -H "Authorization: Bearer <token>"
+        ```
+
+        **Response**:
+        
+        ```
+        {
+            "detail": "Review deleted successfully."
+        }
+        ```
+
+        **Note**:
+        - Only pending reviews will be shown
+        - Reviews will be ordered by pending first, then by created_at
+        """
+        from communication.models import Review
+        review = get_object_or_404(Review, pk=pk)
+        review.delete()
+        return Response({"detail": "Review deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    
+class DashboardReviewStatusUpdateAPIView(NewAPIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    serializer_class = serializers.ReviewStatusUpdateSerializer
+    http_method_names = ['patch']
+    def patch(self, request, pk):
+        """
+        **Update status of a specific review.**\n
+
+        **Request**:
+        ```
+        curl -X PATCH "http://localhost:8000/dashboard/reviews/<pk>/" \
+        -H "Authorization: Bearer <token>" \
+        -d "status=approved"
+        ```
+
+        **Response**:
+        ```
+        {
+            "id": 1,
+            "job": 1,
+            "reviewer": 1,
+            "reviewer_name": "John Doe",
+            "reviewer_role": "client",
+            "reviewed": 2,
+            "reviewed_name": "Jane Smith",
+            "reviewed_role": "phlebotomist",
+            "rating": 5,
+            "comment": "Great job!",
+            "status": "approved",
+            "created_at": "2025-09-15T10:00:00.000Z"
+        }
+        ```
+
+        **Note**:
+        - Only pending reviews will be shown
+        - Reviews will be ordered by pending first, then by created_at
+        """
+        from communication.models import Review
+        review = self.get_queryset().filter(pk=pk).first()
+        if not review:
+            return Response({"detail": "Review not found."})
+        status_val = request.data.get('status')
+        if status_val and status_val in [Review.PENDING, Review.APPROVED, Review.REJECTED]:
+            review.status = status_val
+            review.save()
+            serializer = self.get_serializer(review)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"detail": "Invalid status value."}, status=status.HTTP_400_BAD_REQUEST)
+
 

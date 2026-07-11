@@ -540,5 +540,126 @@ class TermsOfServiceAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class ReviewsModerationAPITests(APITestCase):
+
+    def setUp(self):
+        # Create users
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="clientpassword",
+            full_name="Client User",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.phleb_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+
+        from jobs.models import Job
+        # Create job
+        self.job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Job",
+            description="Perform blood draws.",
+            location="123 Main St",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(9, 0, 0),
+            shift_end=datetime.time(11, 0, 0),
+            pay_rate=150.00,
+            status=Job.COMPLETED
+        )
+
+        from communication.models import Review
+        # Create reviews
+        # 1. Approved Review
+        self.rev1 = Review.objects.create(
+            job=self.job,
+            reviewer=self.client_user,
+            reviewed=self.phleb_user,
+            rating=5,
+            comment="Awesome work!",
+            status=Review.APPROVED
+        )
+        # 2. Pending Review (should come first in list)
+        self.rev2 = Review.objects.create(
+            job=self.job,
+            reviewer=self.client_user,
+            reviewed=self.phleb_user,
+            rating=4,
+            comment="Good work, but pending moderation.",
+            status=Review.PENDING
+        )
+
+        self.list_url = reverse('dashboard-reviews-list')
+
+    def test_list_reviews_ordering_pending_first(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+        self.assertEqual(len(results), 2)
+        
+        # Pending review (rev2) must be first
+        self.assertEqual(results[0]['id'], self.rev2.id)
+        self.assertEqual(results[0]['status'], 'pending')
+        
+        # Approved review (rev1) must be second
+        self.assertEqual(results[1]['id'], self.rev1.id)
+        self.assertEqual(results[1]['status'], 'approved')
+
+    def test_get_review_detail(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dashboard-reviews-detail', kwargs={'pk': self.rev2.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['comment'], "Good work, but pending moderation.")
+
+    def test_patch_review_status(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dashboard-reviews-detail', kwargs={'pk': self.rev2.id})
+        response = self.client.patch(url, {'status': 'approved'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.rev2.refresh_from_db()
+        self.assertEqual(self.rev2.status, 'approved')
+
+    def test_delete_review(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('dashboard-reviews-detail', kwargs={'pk': self.rev2.id})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        
+        from communication.models import Review
+        self.assertFalse(Review.objects.filter(id=self.rev2.id).exists())
+
+    def test_reviews_permissions_denied_for_non_admin(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 
 
