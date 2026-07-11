@@ -210,26 +210,3 @@ class ClientWeeklySchedule(models.Model):
         return f"Availability for {self.client.client.full_name} on {self.date} from {self.start_time} to {self.end_time}"
 # Client models End Herepy
 
-
-@admin.register(ActivityLog)
-class ActivityLogAdmin(admin.ModelAdmin):
-    list_display = ('id', 'get_user_info', 'activity_type', 'description', 'created_at')
-    list_filter = ('activity_type', 'created_at')
-    search_fields = ('activity_type', 'description', 'user__full_name', 'user__email')
-    ordering = ('-created_at',)
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def get_readonly_fields(self, request, obj=None):
-        return [f.name for f in self.model._meta.fields]
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related('user')
-
-    @admin.display(ordering='user__full_name', description='User')
-    def get_user_info(self, obj):
-        return f"{obj.user.full_name} ({obj.user.email})"
