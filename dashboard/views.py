@@ -2130,7 +2130,7 @@ class DashboardReviewsListAPIView(NewAPIView):
 class DashboardReviewDetailAPIView(NewAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = serializers.ReviewSerializer
-    http_method_names = ['get', 'delete']
+    http_method_names = ['get', 'delete', 'patch']
     
     def get_queryset(self):
         from communication.models import Review
@@ -2201,11 +2201,11 @@ class DashboardReviewDetailAPIView(NewAPIView):
         review = get_object_or_404(Review, pk=pk)
         review.delete()
         return Response({"detail": "Review deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-    
-class DashboardReviewStatusUpdateAPIView(NewAPIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    serializer_class = serializers.ReviewStatusUpdateSerializer
-    http_method_names = ['patch']
+
+    @swagger_auto_schema(
+        tags=["Dashboard - Communication and Reviews Moderation"],
+        request_body=serializers.ReviewStatusUpdateSerializer
+    )
     def patch(self, request, pk):
         """
         **Update status of a specific review.**\n
@@ -2234,15 +2234,9 @@ class DashboardReviewStatusUpdateAPIView(NewAPIView):
             "created_at": "2025-09-15T10:00:00.000Z"
         }
         ```
-
-        **Note**:
-        - Only pending reviews will be shown
-        - Reviews will be ordered by pending first, then by created_at
         """
         from communication.models import Review
-        review = self.get_queryset().filter(pk=pk).first()
-        if not review:
-            return Response({"detail": "Review not found."})
+        review = get_object_or_404(Review, pk=pk)
         status_val = request.data.get('status')
         if status_val and status_val in [Review.PENDING, Review.APPROVED, Review.REJECTED]:
             review.status = status_val

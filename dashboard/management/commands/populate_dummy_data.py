@@ -5,7 +5,8 @@ from django.utils import timezone
 from django.core.files.base import ContentFile
 from authentication.models import (
     Client, ClientDocument, ClientWeeklySchedule,
-    Phlebotomist, PhlebotomistAvailability, Phlebotomist_skill, Phlebotomist_document
+    Phlebotomist, PhlebotomistAvailability, Phlebotomist_skill, Phlebotomist_document,
+    ActivityLog
 )
 from appointments.models import (
     ServicePackage, ServicePackageFeature, PatientProfile, Appointment, Payment,
@@ -13,6 +14,7 @@ from appointments.models import (
 )
 from jobs.models import Job, JobApplication, JobAssignment, JobTemplate
 from communication.models import Message, Review, Notification, Report
+from dashboard.models import TermsOfService
 
 User = get_user_model()
 
@@ -29,6 +31,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options['clear']:
             self.stdout.write("Clearing existing data...")
+            TermsOfService.objects.all().delete()
+            ActivityLog.objects.all().delete()
             Report.objects.all().delete()
             Notification.objects.all().delete()
             Review.objects.all().delete()
@@ -60,6 +64,31 @@ class Command(BaseCommand):
 
         # 1. Platform Settings
         setting, _ = PlatformSetting.objects.get_or_create(key='platform_fee_percentage', defaults={'value': 15.00})
+
+        # 1.5 Terms of Service
+        TermsOfService.objects.get_or_create(
+            title="Primepath Service Agreement",
+            defaults={
+                "description": (
+                    "Last Updated: January 2025\n"
+                    "Legally Binding Document\n\n"
+                    "1. Terms of Service\n"
+                    "By using Phlebotomist services, you agree to provide accurate healthcare services in accordance with "
+                    "professional standards and applicable regulations. This agreement establishes the framework for our partnership.\n\n"
+                    "Key Points:\n"
+                    "- Professional liability coverage required\n"
+                    "- Compliance with HIPAA regulations\n"
+                    "- 24-hour cancellation policy\n\n"
+                    "2. Payment Policies\n"
+                    "Payment terms are Net 15 days from service completion. Direct deposit is our preferred payment method, "
+                    "with payments processed bi-weekly.\n\n"
+                    "Average processing time: 2-3 business days\n\n"
+                    "3. Legal Disclaimers\n"
+                    "This agreement is governed by state healthcare regulations. Both parties acknowledge understanding of "
+                    "their rights and responsibilities under this partnership."
+                )
+            }
+        )
 
         # 2. Create Users
         admin_user, _ = User.objects.get_or_create(
@@ -678,6 +707,23 @@ class Command(BaseCommand):
                 "additional_details": "Sent multiple irrelevant messages.",
                 "status": Report.PENDING
             }
+        )
+
+        # 16. Activity Logs
+        ActivityLog.objects.get_or_create(
+            user=phleb2,
+            activity_type="Job Completed",
+            description=f"Completed job {job2.id} successfully"
+        )
+        ActivityLog.objects.get_or_create(
+            user=phleb2,
+            activity_type="Job Accepted",
+            description=f"Accepted job {job1.id}"
+        )
+        ActivityLog.objects.get_or_create(
+            user=client2,
+            activity_type="Job Created",
+            description=f"Created job posting {job1.id}"
         )
 
         self.stdout.write(self.style.SUCCESS("Dummy data populated successfully!"))

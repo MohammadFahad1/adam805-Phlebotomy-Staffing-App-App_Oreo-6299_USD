@@ -1825,8 +1825,10 @@ class PhlebotomistHomeAPIView(APIView):
         **Home Page of Phlebotomist**
 
         **Request Example**:
-        ```
-        GET /jobs/phlebotomist/home/?date_filter=today
+        ```json
+        {
+            "date_filter": "today"
+        }
         ```
         
         **Response Example**:
@@ -2070,7 +2072,15 @@ class PhlebotomistHomeAPIView(APIView):
 
         from authentication.models import ActivityLog
         # Recent Activity Stream
-        recent_activities = ActivityLog.objects.filter(user=request.user).order_by('-created_at')
+        logs = ActivityLog.objects.filter(user=request.user).order_by('-created_at')[:5]
+        recent_activities = []
+        for log in logs:
+            recent_activities.append({
+                "title": log.activity_type,
+                "description": log.description,
+                "type": "activity",
+                "date": log.created_at
+            })
         
         # 1. Job Assignment activities
         all_assignments = JobAssignment.objects.filter(phlebotomist=user).select_related('job').order_by('-created_at')[:5]
@@ -2095,7 +2105,6 @@ class PhlebotomistHomeAPIView(APIView):
             recent_activities.append({
                 "title": title,
                 "description": desc,
-                "amount": amount,
                 "type": "job",
                 "date": assign.created_at
             })
@@ -2112,6 +2121,7 @@ class PhlebotomistHomeAPIView(APIView):
             })
             
         # Sort combined activity lists by date descending, keep top 5
+        recent_activities.sort(key=lambda x: x['date'], reverse=True)
         recent_activities = recent_activities[:5]
 
         return Response({
