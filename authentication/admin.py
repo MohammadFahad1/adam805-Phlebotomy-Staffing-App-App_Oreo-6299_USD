@@ -8,7 +8,8 @@ from .models import (
     Phlebotomist_document,
     Client, 
     ClientDocument, 
-    ClientWeeklySchedule
+    ClientWeeklySchedule,
+    ActivityLog
 )
 
 
@@ -208,4 +209,5 @@ class ClientWeeklyScheduleAdmin(admin.ModelAdmin):
     def get_client_name(self, obj):
         return obj.client.client.full_name
 
-
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin)
