@@ -241,6 +241,3 @@ class MarkAsSeenAPIView(NewAPIView):
             "success": True,
             "message": "Messages marked as read."
         }, status=200)
-
-# Communication & Reviews moderation
-# class 
