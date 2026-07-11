@@ -44,4 +44,8 @@ urlpatterns = [
     path('job-matching/', views.ManualJobMatchingView.as_view(), name='manual-job-matching'),
     path('job-matching/available-users/', views.AvailablePhlebotomistsOrClientsForJobMatchingAPIView.as_view(), name='available-users-job-matching'),
     path('job-matching/available-users/<int:pk>/', views.AvailablePhlebotomistsOrClientsForJobMatchingDetailAPIView.as_view(), name='available-users-job-matching-detail'),
+
+    # Payroll Management
+    path('payroll/', views.AdminPayrollAPIView.as_view(), name='admin-payroll'),
+    path('payroll/<str:pk>/', views.AdminPayrollDetailAPIView.as_view(), name='admin-payroll-detail'),
 ]
