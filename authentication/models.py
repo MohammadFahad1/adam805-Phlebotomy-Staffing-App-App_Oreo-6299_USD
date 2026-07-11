@@ -209,3 +209,10 @@ class ClientWeeklySchedule(models.Model):
     def __str__(self):
         return f"Availability for {self.client.client.full_name} on {self.date} from {self.start_time} to {self.end_time}"
 # Client models End Herepy
+
+
+class ActivityLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
+    activity_type = models.CharField(max_length=100)
+    description = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)

@@ -1825,10 +1825,8 @@ class PhlebotomistHomeAPIView(APIView):
         **Home Page of Phlebotomist**
 
         **Request Example**:
-        ```json
-        {
-            "date_filter": "today"
-        }
+        ```
+        GET /jobs/phlebotomist/home/?date_filter=today
         ```
         
         **Response Example**:
@@ -2070,8 +2068,9 @@ class PhlebotomistHomeAPIView(APIView):
                 "days_left_text": left_str
             }
 
+        from authentication.models import ActivityLog
         # Recent Activity Stream
-        recent_activities = []
+        recent_activities = ActivityLog.objects.filter(user=request.user)
         
         # 1. Job Assignment activities
         all_assignments = JobAssignment.objects.filter(phlebotomist=user).select_related('job').order_by('-created_at')[:5]
