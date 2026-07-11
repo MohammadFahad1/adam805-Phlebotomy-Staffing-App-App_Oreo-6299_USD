@@ -1215,7 +1215,8 @@ class UserRatingsReviewsAPIViewTests(APITestCase):
             reviewer=self.client_user,
             reviewed=self.phleb_user,
             rating=5,
-            comment="Excellent service!"
+            comment="Excellent service!",
+            status=Review.APPROVED
         )
 
         # Create Review 2 (Phlebotomist reviews Client)
@@ -1224,7 +1225,8 @@ class UserRatingsReviewsAPIViewTests(APITestCase):
             reviewer=self.phleb_user,
             reviewed=self.client_user,
             rating=4,
-            comment="Very nice client, on time."
+            comment="Very nice client, on time.",
+            status=Review.APPROVED
         )
 
         self.phleb_reviews_url = reverse('phlebotomist-ratings-reviews')

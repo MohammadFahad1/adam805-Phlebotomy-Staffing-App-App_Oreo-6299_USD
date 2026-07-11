@@ -837,71 +837,122 @@ class PayoutRequestView(NewAPIView):
         return Response({"detail": "Payout request submitted successfully.", "payout_request_id": payout_req.id}, status=status.HTTP_200_OK)
 
 class PatientListView(NewAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
     serializer_class = serializers.PatientListSerializer
 
-    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('user_id', openapi.IN_QUERY, description="ID of the client or phlebotomist user", type=openapi.TYPE_INTEGER, required=True)
+        ],
+        tags=["Dashboard - Dashboard Page"]
+    )
     def get(self, request):
         """
-        **Get list of patients for logged-in Client or Phlebotomist**
+        **Get list of patients for a specific Client or Phlebotomist - Admin Only**
         
-        Retrieves all appointments and returns formatted patient information.
-        - Clients see patients directly assigned to their appointments.
-        - Phlebotomists see patients assigned to jobs they are handling.
+        Retrieves all appointments and returns formatted patient information for the target user.
+
+        **Query Parameters:**
+        - user_id: ID of the client or phlebotomist user (required)
+
+        **Response:**
+        [
+            {
+                "id": 10001,
+                "full_name": "Al Mubin",
+                "email": "mubin@example.com",
+                "role": "client",
+                "profile_picture": null,
+                "last_message": "Hi there! I wanted to confirm my appointment details for tomorrow.",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 0,
+                "is_online": true
+            },
+            {
+                "id": 10002,
+                "full_name": "Admin",
+                "email": "admin@example.com",
+                "role": "admin",
+                "profile_picture": null,
+                "last_message": "Perfect! Here's my location...",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 2,
+                "is_online": true
+            }
+        ]
         """
-        user = request.user
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({"detail": "user_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Pop user_id from query params copy so AutoPaginatedResponse doesn't filter on it
+        qd = request.GET.copy()
+        qd.pop('user_id', None)
+        request._request.GET = qd
+        if hasattr(request, '_query_params'):
+            try:
+                delattr(request, '_query_params')
+            except AttributeError:
+                pass
+
+        target_user = get_object_or_404(User, id=user_id)
         
-        if user.role == User.CLIENT:
-            queryset = Appointment.objects.filter(client=user)
-        elif user.role == User.PHLEBOTOMIST:
-            queryset = Appointment.objects.filter(jobs__assignment__phlebotomist=user)
+        if target_user.role == User.CLIENT:
+            queryset = Appointment.objects.filter(client=target_user)
+        elif target_user.role == User.PHLEBOTOMIST:
+            queryset = Appointment.objects.filter(jobs__assignment__phlebotomist=target_user)
         else:
-            if user.is_staff or user.role == User.ADMIN:
-                queryset = Appointment.objects.all()
-            else:
-                queryset = Appointment.objects.none()
-                
+            queryset = Appointment.objects.none()
+            
         queryset = queryset.select_related('patient').order_by('-appointment_date', '-start_time')
         
         serializer = self.get_serializer(queryset, many=True)
         return AutoPaginatedResponse(serializer.data, request)
 
 class PatientAppointmentDetailView(NewAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
     serializer_class = serializers.PatientAppointmentDetailSerializer
 
     @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def get(self, request, pk):
         """
-        **Get detailed appointment and patient information**
+        **Get detailed appointment and patient information - Admin Only**
         
         Retrieves comprehensive information for the specific appointment detail screen.
-        Checks permissions:
-        - Clients can view details if the appointment belongs to them.
-        - Phlebotomists can view details if they are assigned to the job associated with the appointment.
+
+        **Request Parameters:**
+        - pk: ID of the appointment (required)
+
+        **Response:**
+        [
+            {
+                "id": 10001,
+                "full_name": "Al Mubin",
+                "email": "mubin@example.com",
+                "role": "client",
+                "profile_picture": null,
+                "last_message": "Hi there! I wanted to confirm my appointment details for tomorrow.",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 0,
+                "is_online": true
+            },
+            {
+                "id": 10002,
+                "full_name": "Admin",
+                "email": "admin@example.com",
+                "role": "admin",
+                "profile_picture": null,
+                "last_message": "Perfect! Here's my location...",
+                "last_message_time": "2026-07-10T15:20:00Z",
+                "unread_count": 2,
+                "is_online": true
+            }
+        ]
         """
         appointment = get_object_or_404(
             Appointment.objects.select_related('patient', 'service_package', 'client'),
             id=pk
         )
-        
-        user = request.user
-        
-        # Permission checks
-        if not (user.is_staff or user.role == User.ADMIN):
-            if user.role == User.CLIENT:
-                if appointment.client != user:
-                    self.permission_denied(request, "You do not have access to this appointment.")
-            elif user.role == User.PHLEBOTOMIST:
-                from jobs.models import JobAssignment
-                is_assigned = JobAssignment.objects.filter(
-                    phlebotomist=user,
-                    job__appointment=appointment
-                ).exists()
-                if not is_assigned:
-                    self.permission_denied(request, "You do not have access to this appointment.")
-            else:
-                self.permission_denied(request, "You do not have access to this appointment.")
                 
         serializer = self.get_serializer(appointment, context={'request': request})
         return Response(serializer.data)

@@ -440,6 +440,17 @@ class PatientScreenAPITests(APITestCase):
             dob="1990-01-01",
             role=User.CLIENT
         )
+        self.admin_user = User.objects.create_user(
+            email="admin_patient_test@example.com",
+            password="testpassword123",
+            full_name="Admin User",
+            phone_number="0987654321",
+            gender="female",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
         self.service_package = ServicePackage.objects.create(
             name="Patient Test Package",
             description="Test package description",
@@ -491,9 +502,9 @@ class PatientScreenAPITests(APITestCase):
             status=Appointment.CONFIRMED
         )
 
-    def test_patient_list_for_client(self):
-        self.client.force_authenticate(user=self.client_user)
-        url = reverse('patient-list')
+    def test_patient_list_for_client_admin(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('patient-list') + f"?user_id={self.client_user.id}"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see only patient1's appointment
@@ -503,13 +514,8 @@ class PatientScreenAPITests(APITestCase):
         self.assertEqual(results[0]['patient_name'], "Fahmida Tasnim")
         self.assertTrue(results[0]['patient_id'].startswith("SID-"))
 
-    def test_patient_list_for_phlebotomist(self):
-        # First, phlebotomist has no jobs assigned, so list should be empty
-        self.client.force_authenticate(user=self.phleb_user)
-        url = reverse('patient-list')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 0)
+    def test_patient_list_for_phlebotomist_admin(self):
+        self.client.force_authenticate(user=self.admin_user)
         
         # Assign phlebotomist to job for appointment2
         from jobs.models import Job, JobAssignment
@@ -532,6 +538,7 @@ class PatientScreenAPITests(APITestCase):
             status=JobAssignment.ACTIVE
         )
         
+        url = reverse('patient-list') + f"?user_id={self.phleb_user.id}"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see patient2's appointment now
@@ -540,8 +547,15 @@ class PatientScreenAPITests(APITestCase):
         self.assertEqual(results[0]['appointment_id'], self.appointment2.id)
         self.assertEqual(results[0]['patient_name'], "John Doe")
 
-    def test_patient_appointment_detail(self):
+    def test_patient_list_unauthorized(self):
+        # Non-admin user should get 403 Forbidden
         self.client.force_authenticate(user=self.client_user)
+        url = reverse('patient-list') + f"?user_id={self.client_user.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_patient_appointment_detail_admin(self):
+        self.client.force_authenticate(user=self.admin_user)
         url = reverse('patient-appointment-detail', kwargs={'pk': self.appointment1.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -568,10 +582,10 @@ class PatientScreenAPITests(APITestCase):
         self.assertEqual(data['service_overview']['service'], "Mobile Blood Draw")
         self.assertEqual(data['service_overview']['total_amount'], "$89.00")
 
-    def test_patient_appointment_detail_permissions(self):
-        # Client 1 trying to access Client 2's appointment should be forbidden
+    def test_patient_appointment_detail_unauthorized(self):
+        # Non-admin trying to access detail should be forbidden
         self.client.force_authenticate(user=self.client_user)
-        url = reverse('patient-appointment-detail', kwargs={'pk': self.appointment2.id})
+        url = reverse('patient-appointment-detail', kwargs={'pk': self.appointment1.id})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
