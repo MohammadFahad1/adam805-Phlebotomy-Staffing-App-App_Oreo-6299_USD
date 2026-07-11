@@ -2070,7 +2070,7 @@ class PhlebotomistHomeAPIView(APIView):
 
         from authentication.models import ActivityLog
         # Recent Activity Stream
-        recent_activities = ActivityLog.objects.filter(user=request.user).order_by('-date')
+        recent_activities = ActivityLog.objects.filter(user=request.user).order_by('-created_at')
         
         # 1. Job Assignment activities
         all_assignments = JobAssignment.objects.filter(phlebotomist=user).select_related('job').order_by('-created_at')[:5]
