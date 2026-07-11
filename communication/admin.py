@@ -35,7 +35,7 @@ class ReviewAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (None, {
-            'fields': ('job', 'reviewer', 'reviewed', 'rating', 'comment')
+            'fields': ('job', 'reviewer', 'reviewed', 'rating', 'comment', 'status')
         }),
         ('Timestamp', {
             'fields': ('created_at',),

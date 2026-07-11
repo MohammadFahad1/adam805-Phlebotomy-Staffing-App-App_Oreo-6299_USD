@@ -1837,60 +1837,40 @@ class PhlebotomistHomeAPIView(APIView):
             "success": true,
             "data": {
                 "user": {
-                    "id": 1,
-                    "full_name": "Phlebotomist Name",
-                    "email": "[EMAIL_ADDRESS]",
-                    "avatar_url": "https://example.com/path/to/avatar.jpg",
-                    "subtitle": "Certified Phlebotomist • 5 years exp"
+                    "id": 10,
+                    "full_name": "John Phlebotomist",
+                    "avatar": null,
+                    "rating": 4.8,
+                    "reviews_count": 0,
+                    "subtitle": "General Phlebotomy • 4 years exp"
                 },
-                    "metrics": {
+                "metrics": {
                     "total_earnings": "$0",
                     "jobs_done": 0,
                     "rating": 4.8,
                     "today_earnings": "$ 0",
-                    "pending_payouts": "$ 0"
+                    "pending_payouts": "$ 8"
                 },
                 "next_job": {
-                    "id": 1,
-                    "job_id": 101,
-                    "title": "Morning Blood Draw",
-                    "client_name": "Clinic A",
-                    "shift": "09:00 AM - 12:00 PM",
-                    "date": "2024-11-25",
-                    "location": "123 Main St",
-                    "status": "active"
+                    "id": "JB-26-000003",
+                    "title": "Testing",
+                    "location": "gjdfg",
+                    "shift_time": "July 12, 2026, 8:27 AM - 9:27 AM",
+                    "tag": "In 23 hours",
+                    "client_name": "John Phlebotomist"
                 },
-                "urgent_jobs": [
-                    {
-                        "id": 1,
-                        "job_id": 102,
-                        "title": "Urgent Collection",
-                        "client_name": "Hospital B",
-                        "shift": "11:00 AM - 02:00 PM",
-                        "date": "2024-11-26",
-                        "location": "456 Oak Ave",
-                        "urgency": "urgent"
-                    }
-                ],
-                "completed_this_period": [
-                    {
-                        "id": 1,
-                        "job_id": 103,
-                        "title": "Afternoon Draw",
-                        "client_name": "Lab C",
-                        "shift": "02:00 PM - 05:00 PM",
-                        "date": "2024-11-24",
-                        "payment": {
-                            "amount": 45.00,
-                            "date": "2024-11-24"
-                        }
-                    }
-                ],
                 "license_expiration": {
-                    "expires_in_days": 45,
-                    "expiry_date": "2025-01-15",
-                    "warning_message": "License expires in 45 days"
-                }
+                    "expiry_date": "11 July 2027",
+                    "days_left_text": "1 Year left"
+                },
+                "recent_activities": [
+                    {
+                        "title": "Job Accepted",
+                        "description": "gjdfg",
+                        "type": "job",
+                        "date": "2026-07-11T08:28:00.566165Z"
+                    }
+                ]
             },
             "message": "Phlebotomist home data retrieved successfully."
         }
