@@ -2006,7 +2006,7 @@ class PhlebotomistHomeAPIView(APIView):
         now = timezone.now()
         next_assignment = JobAssignment.objects.filter(
             phlebotomist=user,
-            status__in=[JobAssignment.ACTIVE, JobAssignment.PENDING]
+            status__in=[JobAssignment.ACTIVE, JobAssignment.ACTIVE]
         ).filter(
             job__shift_date__gte=today_date
         ).select_related('job', 'job__client').order_by('job__shift_date', 'job__shift_start').first()
