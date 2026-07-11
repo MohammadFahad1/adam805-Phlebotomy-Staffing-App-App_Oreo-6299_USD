@@ -2070,7 +2070,7 @@ class PhlebotomistHomeAPIView(APIView):
 
         from authentication.models import ActivityLog
         # Recent Activity Stream
-        recent_activities = ActivityLog.objects.filter(user=request.user)
+        recent_activities = ActivityLog.objects.filter(user=request.user).order_by('-date')
         
         # 1. Job Assignment activities
         all_assignments = JobAssignment.objects.filter(phlebotomist=user).select_related('job').order_by('-created_at')[:5]
@@ -2112,7 +2112,7 @@ class PhlebotomistHomeAPIView(APIView):
             })
             
         # Sort combined activity lists by date descending, keep top 5
-        recent_activities.sort(key=lambda x: x['date'], reverse=True)
+        # recent_activities.sort(key=lambda x: x['date'], reverse=True)
         recent_activities = recent_activities[:5]
         
         # Remove date key before serialization
