@@ -39,4 +39,9 @@ urlpatterns = [
 
     # Analytics & Reporting
     path('analytics-reporting/', views.AnalyticsReportingAPIView.as_view(), name='analytics-reporting'),
+
+    # Job Matching
+    path('job-matching/', views.ManualJobMatchingView.as_view(), name='manual-job-matching'),
+    path('job-matching/available-users/', views.AvailablePhlebotomistsOrClientsForJobMatchingAPIView.as_view(), name='available-users-job-matching'),
+    path('job-matching/available-users/<int:pk>/', views.AvailablePhlebotomistsOrClientsForJobMatchingDetailAPIView.as_view(), name='available-users-job-matching-detail'),
 ]
