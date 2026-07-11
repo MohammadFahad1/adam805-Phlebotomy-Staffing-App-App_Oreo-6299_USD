@@ -1231,7 +1231,8 @@ class PhlebotomistProfileView(NewAPIView):
 
         # ── Ratings & Reviews ─────────────────────────────────────────────────
         reviews_qs = Review.objects.filter(
-            reviewed=user
+            reviewed=user,
+            status=Review.APPROVED
         ).select_related('reviewer').order_by('-created_at')
 
         rating_data  = reviews_qs.aggregate(avg=Avg('rating'), total=Count('id'))
@@ -1363,7 +1364,8 @@ class ClientProfileView(NewAPIView):
 
         # ── Ratings & Reviews ─────────────────────────────────────────────────
         reviews_qs = Review.objects.filter(
-            reviewed=user
+            reviewed=user,
+            status = Review.APPROVED
         ).select_related('reviewer').order_by('-created_at')
 
         rating_data    = reviews_qs.aggregate(avg=Avg('rating'), total=Count('id'))

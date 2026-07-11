@@ -1450,7 +1450,7 @@ class UserRatingsReviewsAPIView(NewAPIView):
                 years = diff.days // 365
                 return f"{years} year{'s' if years != 1 else ''} ago"
 
-        reviews = Review.objects.filter(reviewed=request.user).order_by('-created_at')
+        reviews = Review.objects.filter(reviewed=request.user, status=Review.APPROVED).order_by('-created_at')
         total_reviews_count = reviews.count()
         
         avg_rating = reviews.aggregate(Avg('rating'))['rating__avg']

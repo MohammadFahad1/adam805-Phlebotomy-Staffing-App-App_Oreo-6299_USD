@@ -27,7 +27,7 @@ class Review(models.Model):
     reviewed = models.ForeignKey('authentication.User', on_delete=models.CASCADE, related_name='reviews_as_reviewed')
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField()
-    status = models.CharField(max_length=50, default=PENDING)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
