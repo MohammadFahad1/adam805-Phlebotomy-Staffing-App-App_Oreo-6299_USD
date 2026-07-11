@@ -36,4 +36,7 @@ urlpatterns = [
     # Reviews Moderation
     path('reviews/', views.DashboardReviewsListAPIView.as_view(), name='dashboard-reviews-list'),
     path('reviews/<int:pk>/', views.DashboardReviewDetailAPIView.as_view(), name='dashboard-reviews-detail'),
+
+    # Analytics & Reporting
+    path('analytics-reporting/', views.AnalyticsReportingAPIView.as_view(), name='analytics-reporting'),
 ]
