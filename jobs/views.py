@@ -2112,12 +2112,7 @@ class PhlebotomistHomeAPIView(APIView):
             })
             
         # Sort combined activity lists by date descending, keep top 5
-        # recent_activities.sort(key=lambda x: x['date'], reverse=True)
         recent_activities = recent_activities[:5]
-        
-        # Remove date key before serialization
-        for act in recent_activities:
-            act.pop('date')
 
         return Response({
             "success": True,
