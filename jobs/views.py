@@ -1843,14 +1843,12 @@ class PhlebotomistHomeAPIView(APIView):
                     "avatar_url": "https://example.com/path/to/avatar.jpg",
                     "subtitle": "Certified Phlebotomist • 5 years exp"
                 },
-                "metrics": {
-                    "total_earnings": 0.00,
-                    "total_jobs": 10,
-                    "upcoming_jobs": 3,
-                    "pending_payouts": 50.00,
-                    "completed_jobs": 5,
-                    "cancel_rate": "10%",
-                    "today_earnings": 0.00
+                    "metrics": {
+                    "total_earnings": "$0",
+                    "jobs_done": 0,
+                    "rating": 4.8,
+                    "today_earnings": "$ 0",
+                    "pending_payouts": "$ 0"
                 },
                 "next_job": {
                     "id": 1,
