@@ -1844,11 +1844,13 @@ class PhlebotomistHomeAPIView(APIView):
                     "subtitle": "Certified Phlebotomist • 5 years exp"
                 },
                 "metrics": {
+                    "total_earnings": 0.00,
                     "total_jobs": 10,
                     "upcoming_jobs": 3,
                     "pending_payouts": 50.00,
                     "completed_jobs": 5,
-                    "cancel_rate": "10%"
+                    "cancel_rate": "10%",
+                    "today_earnings": 0.00
                 },
                 "next_job": {
                     "id": 1,
@@ -1926,7 +1928,7 @@ class PhlebotomistHomeAPIView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Calculate user rating
-        reviews = Review.objects.filter(reviewed=user)
+        reviews = Review.objects.filter(reviewed=user, status=Review.APPROVED)
         avg = reviews.aggregate(Avg('rating'))['rating__avg']
         rating = round(avg, 1) if avg is not None else 4.8
         reviews_count = reviews.count()
@@ -1998,8 +2000,8 @@ class PhlebotomistHomeAPIView(APIView):
             "total_earnings": f"${total_earnings:,.0f}",
             "jobs_done": metric_assignments.count(),
             "rating": rating,
-            "today_earnings": f"${today_earnings:,.0f}",
-            "pending_payouts": f"${pending_payouts:,.0f}"
+            "today_earnings": f"$ {today_earnings:,.0f}",
+            "pending_payouts": f"$ {pending_payouts:,.0f}"
         }
 
         # Next Job Card
@@ -2132,6 +2134,69 @@ class PhlebotomistHomeAPIView(APIView):
             "message": "Phlebotomist home data retrieved successfully."
         }, status=status.HTTP_200_OK)
 
+class PhlebotomistClientListToReportAPIView(APIView):
+    serializer_class = EmptySerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(tags=["App (Phlebotomist) - Home Section"])
+    def get(self, request):
+        """
+        **Phlebotomist (Provider) Client List for Reporting**\n
+        Lists clients that the phlebotomist has worked with and can report.
+        Each client should appear only once.
+
+        **Example Response:**
+        ```json
+        {
+            "success": true,
+            "data": {
+                "clients": [
+                    {
+                        "id": 1,
+                        "name": "Client Name",
+                        "avatar": "http://localhost:8001/media/profile_pictures/avatar.jpg"
+                    }
+                ]
+            },
+            "message": "Phlebotomist client list for reporting retrieved successfully."
+        }
+        """
+        from django.db.models import Case, When, Value, IntegerField
+        from jobs.models import JobAssignment
+
+        user = request.user
+
+        # Get list of client user IDs that have jobs assigned to this phlebotomist
+        worked_client_ids = set(
+            JobAssignment.objects.filter(phlebotomist=user)
+            .values_list('job__client_id', flat=True)
+        )
+
+        # Retrieve all client users, ordering those worked with first
+        clients = User.objects.filter(role=User.CLIENT).annotate(
+            worked_first=Case(
+                When(id__in=worked_client_ids, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField()
+            )
+        ).order_by('-worked_first', 'full_name')
+
+        clients_list = []
+        for client in clients:
+            avatar_url = request.build_absolute_uri(client.profile_picture.url) if client.profile_picture else None
+            clients_list.append({
+                "id": client.id,
+                "name": client.full_name,
+                "avatar": avatar_url
+            })
+
+        return Response({
+            "success": True,
+            "data": {
+                "clients": clients_list
+            },
+            "message": "Phlebotomist client list for reporting retrieved successfully."
+        }, status=status.HTTP_200_OK)
 
 # Client Endpoints
 class ClientHomeAPIView(APIView):

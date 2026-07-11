@@ -38,5 +38,6 @@ urlpatterns = [
     path('phlebotomist/jobs/<str:job_id>/reject/', views.PhlebotomistRejectJobsAPIView.as_view(), name='phlebotomist-reject-job'),
     path('phlebotomist/home/', views.PhlebotomistHomeAPIView.as_view(), name='phlebotomist-home'),
     path('phlebotomist/home/ratings-reviews/', views.PhlebotomistRatingsReviewsAPIView.as_view(), name='phlebotomist-ratings-reviews'),
+    path('phlebotomist/clients/report/', views.PhlebotomistClientListToReportAPIView.as_view(), name='phlebotomist-clients-report'),
 ]
 

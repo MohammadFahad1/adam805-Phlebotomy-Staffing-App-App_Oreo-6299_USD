@@ -1441,7 +1441,7 @@ class PhlebotomistHomeAPIViewTests(APITestCase):
         data = response.data
         self.assertTrue(data['success'])
         self.assertEqual(data['data']['user']['full_name'], "Phleb User")
-        self.assertEqual(data['data']['metrics']['pending_payouts'], "$40")
+        self.assertEqual(data['data']['metrics']['pending_payouts'], "$ 40")
         self.assertEqual(data['data']['next_job']['title'], "Blood Draw Station")
         self.assertEqual(data['data']['next_job']['location'], "General Hospital, Room 205")
         self.assertEqual(data['data']['license_expiration']['expiry_date'], "15 August 2030")
@@ -1835,6 +1835,97 @@ class ClientHomeAPIViewTests(APITestCase):
         self.assertTrue(detail_response.data["review"]["has_reviewed"])
         self.assertEqual(detail_response.data["review"]["rating"], 4)
         self.assertEqual(detail_response.data["review"]["comment"], "Nice job!")
+
+
+class PhlebotomistClientListToReportAPITests(APITestCase):
+
+    def setUp(self):
+        # Create Phlebotomist user
+        self.phleb_user = User.objects.create_user(
+            email="phleb_rep_list@example.com",
+            password="SecurePassword123!",
+            full_name="Phleb Rep List",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+
+        # Create Client user 1 (has worked with phlebotomist)
+        self.client_user1 = User.objects.create_user(
+            email="client_rep_list1@example.com",
+            password="SecurePassword123!",
+            full_name="Client Rep List A",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create Client user 2 (has NOT worked with phlebotomist)
+        self.client_user2 = User.objects.create_user(
+            email="client_rep_list2@example.com",
+            password="SecurePassword123!",
+            full_name="Client Rep List B",
+            phone_number="1234567892",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+
+        # Create a Job with Client 1
+        from jobs.models import Job, JobAssignment
+        import datetime
+        self.job = Job.objects.create(
+            client=self.client_user1,
+            title="Blood Draw",
+            description="Regular blood draw service.",
+            location="123 Main Street, New York",
+            city="New York",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        # Create assignment for this phlebotomist
+        JobAssignment.objects.create(
+            job=self.job,
+            phlebotomist=self.phleb_user,
+            client=self.client_user1,
+            status=JobAssignment.ACTIVE
+        )
+
+        self.list_url = reverse('phlebotomist-clients-report')
+
+    def test_get_client_list_success(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        self.assertTrue(data['success'])
+        
+        clients = data['data']['clients']
+        # Should contain both client_user1 and client_user2
+        self.assertEqual(len(clients), 2)
+        
+        # Client 1 should be first because the phlebotomist worked with them
+        self.assertEqual(clients[0]['id'], self.client_user1.id)
+        self.assertEqual(clients[0]['name'], "Client Rep List A")
+        self.assertEqual(clients[1]['id'], self.client_user2.id)
+        self.assertEqual(clients[1]['name'], "Client Rep List B")
+
+    def test_get_client_list_unauthorized(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 
