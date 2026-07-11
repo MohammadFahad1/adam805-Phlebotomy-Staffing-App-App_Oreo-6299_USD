@@ -12,6 +12,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework.views import APIView
 from appointments.models import Appointment, PatientProfile, ServicePackage, ServicePackageFeature, Payment
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 User = get_user_model()
 
@@ -594,10 +596,6 @@ class AppointmentDetailView(NewAPIView):
         serializer = serializers.AppointmentDetailSerializer(appointment, context={'request': request})
         return Response(serializer.data)
 
-
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-
 @method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(APIView):
     permission_classes = [AllowAny]
@@ -652,7 +650,6 @@ class StripeWebhookView(APIView):
 
         return Response({'success': True}, status=status.HTTP_200_OK)
 
-
 class PaymentSuccessView(APIView):
     permission_classes = [AllowAny]
 
@@ -690,14 +687,12 @@ class PaymentSuccessView(APIView):
                 pass
         return Response({'message': 'Payment completed successfully.'}, status=status.HTTP_200_OK)
 
-
 class PaymentCancelView(APIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(tags=["Stripe Webhook - Don't use these."])
     def get(self, request):
         return Response({'message': 'Payment cancelled.'}, status=status.HTTP_200_OK)
-
 
 class ClientInvitePhlebotomistView(NewAPIView):
     serializer_class = serializers.AppointmentUserIdSerializer
@@ -781,7 +776,6 @@ class ClientInvitePhlebotomistView(NewAPIView):
 
         return Response({"detail": "Phlebotomist invited successfully. Job created."}, status=status.HTTP_200_OK)
 
-
 class WalletBalanceView(NewAPIView):
     serializer_class = serializers.WalletBalanceSerializer
     permission_classes = [IsAuthenticated]
@@ -797,7 +791,6 @@ class WalletBalanceView(NewAPIView):
         wallet, _ = Wallet.objects.get_or_create(user=request.user)
         serializer = self.get_serializer(wallet)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class PayoutRequestView(NewAPIView):
     serializer_class = serializers.PayoutRequestCreateSerializer
@@ -842,6 +835,77 @@ class PayoutRequestView(NewAPIView):
             )
 
         return Response({"detail": "Payout request submitted successfully.", "payout_request_id": payout_req.id}, status=status.HTTP_200_OK)
+
+class PatientListView(NewAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.PatientListSerializer
+
+    @swagger_auto_schema(tags=["App - Patient Management"])
+    def get(self, request):
+        """
+        **Get list of patients for logged-in Client or Phlebotomist**
+        
+        Retrieves all appointments and returns formatted patient information.
+        - Clients see patients directly assigned to their appointments.
+        - Phlebotomists see patients assigned to jobs they are handling.
+        """
+        user = request.user
+        
+        if user.role == User.CLIENT:
+            queryset = Appointment.objects.filter(client=user)
+        elif user.role == User.PHLEBOTOMIST:
+            queryset = Appointment.objects.filter(jobs__assignment__phlebotomist=user)
+        else:
+            if user.is_staff or user.role == User.ADMIN:
+                queryset = Appointment.objects.all()
+            else:
+                queryset = Appointment.objects.none()
+                
+        queryset = queryset.select_related('patient').order_by('-appointment_date', '-start_time')
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return AutoPaginatedResponse(serializer.data, request)
+
+class PatientAppointmentDetailView(NewAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.PatientAppointmentDetailSerializer
+
+    @swagger_auto_schema(tags=["App - Patient Management"])
+    def get(self, request, pk):
+        """
+        **Get detailed appointment and patient information**
+        
+        Retrieves comprehensive information for the specific appointment detail screen.
+        Checks permissions:
+        - Clients can view details if the appointment belongs to them.
+        - Phlebotomists can view details if they are assigned to the job associated with the appointment.
+        """
+        appointment = get_object_or_404(
+            Appointment.objects.select_related('patient', 'service_package', 'client'),
+            id=pk
+        )
+        
+        user = request.user
+        
+        # Permission checks
+        if not (user.is_staff or user.role == User.ADMIN):
+            if user.role == User.CLIENT:
+                if appointment.client != user:
+                    self.permission_denied(request, "You do not have access to this appointment.")
+            elif user.role == User.PHLEBOTOMIST:
+                from jobs.models import JobAssignment
+                is_assigned = JobAssignment.objects.filter(
+                    phlebotomist=user,
+                    job__appointment=appointment
+                ).exists()
+                if not is_assigned:
+                    self.permission_denied(request, "You do not have access to this appointment.")
+            else:
+                self.permission_denied(request, "You do not have access to this appointment.")
+                
+        serializer = self.get_serializer(appointment, context={'request': request})
+        return Response(serializer.data)
+
 
 
 

@@ -10,6 +10,10 @@ urlpatterns = [
     # Client Endpoints
     path('client/appointments/<int:appointment_id>/invite/', views.ClientInvitePhlebotomistView.as_view(), name='client-invite-phlebotomist'),
     
+    # Patient Screen Endpoints
+    path('patients/', views.PatientListView.as_view(), name='patient-list'),
+    path('patient-appointment-detail/<int:pk>/', views.PatientAppointmentDetailView.as_view(), name='patient-appointment-detail'),
+    
     # Payment Webhook
     path('stripe/webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook'),
     path('payment-success/', views.PaymentSuccessView.as_view(), name='payment-success'),

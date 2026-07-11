@@ -113,4 +113,193 @@ class WalletBalanceSerializer(serializers.ModelSerializer):
 class PayoutRequestCreateSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=10, decimal_places=2)
 
+class PatientListSerializer(serializers.Serializer):
+    appointment_id = serializers.IntegerField(source='id')
+    patient_name = serializers.SerializerMethodField()
+    patient_id = serializers.SerializerMethodField()
+
+    def get_patient_name(self, obj):
+        if obj.patient:
+            return f"{obj.patient.first_name} {obj.patient.last_name}".strip()
+        return "Unknown Patient"
+
+    def get_patient_id(self, obj):
+        if obj.patient:
+            year = obj.patient.created_at.year if obj.patient.created_at else 2025
+            return f"SID-{year}-{obj.patient.id:03d}"
+        return "N/A"
+
+
+class PatientAppointmentDetailSerializer(serializers.Serializer):
+    patient_info = serializers.SerializerMethodField()
+    medical_info = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
+    client_info = serializers.SerializerMethodField()
+    service_details = serializers.SerializerMethodField()
+    service_overview = serializers.SerializerMethodField()
+
+    def get_patient_info(self, obj):
+        patient = obj.patient
+        if not patient:
+            return {}
+        
+        age_str = "N/A"
+        if patient.dob:
+            from datetime import date
+            today = date.today()
+            age = today.year - patient.dob.year - ((today.month, today.day) < (patient.dob.month, patient.dob.day))
+            age_str = f"{age} years"
+
+        date_str = obj.appointment_date.strftime("%b %d, %Y") if obj.appointment_date else "N/A"
+        time_str = obj.start_time.strftime("%I:%M %p") if obj.start_time else "N/A"
+        year = patient.created_at.year if patient.created_at else 2025
+
+        return {
+            "name": f"{patient.first_name} {patient.last_name}".strip(),
+            "patient_id": f"SID-{year}-{patient.id:03d}",
+            "age": age_str,
+            "phone": patient.phone_number or "N/A",
+            "date": date_str,
+            "time": time_str
+        }
+
+    def get_medical_info(self, obj):
+        prescription_url = None
+        prescription_name = None
+        prescription_uploaded_at = None
+        
+        request = self.context.get('request')
+        if obj.prescription:
+            import os
+            prescription_name = os.path.basename(obj.prescription.name)
+            if request:
+                prescription_url = request.build_absolute_uri(obj.prescription.url)
+            else:
+                prescription_url = obj.prescription.url
+            
+            from django.utils import timezone
+            now = timezone.now()
+            diff = now - obj.updated_at
+            if diff.days > 0:
+                if diff.days == 1:
+                    prescription_uploaded_at = "Uploaded yesterday"
+                else:
+                    prescription_uploaded_at = f"Uploaded {diff.days} days ago"
+            else:
+                hours = diff.seconds // 3600
+                if hours > 0:
+                    prescription_uploaded_at = f"Uploaded {hours} hour{'s' if hours > 1 else ''} ago"
+                else:
+                    minutes = diff.seconds // 60
+                    if minutes > 0:
+                        prescription_uploaded_at = f"Uploaded {minutes} minute{'s' if minutes > 1 else ''} ago"
+                    else:
+                        prescription_uploaded_at = "Uploaded just now"
+
+        return {
+            "prescription_url": prescription_url,
+            "prescription_name": prescription_name,
+            "prescription_uploaded_at": prescription_uploaded_at,
+            "special_instructions": obj.special_requests or "No special instructions."
+        }
+
+    def get_location(self, obj):
+        loc_type_map = {
+            'home': "Patient's Home",
+            'hospital': "Hospital/Clinic",
+            'lab': "Lab"
+        }
+        return {
+            "type": loc_type_map.get(obj.location_type, "Patient's Home"),
+            "address": obj.location or "N/A"
+        }
+
+    def get_client_info(self, obj):
+        client = obj.client
+        if not client:
+            return {}
+        
+        client_profile = getattr(client, 'client_profile', None)
+        
+        from communication.models import Review
+        from django.db.models import Avg, Count
+        reviews_summary = Review.objects.filter(reviewed=client).aggregate(
+            avg_rating=Avg('rating'),
+            total_reviews=Count('id')
+        )
+        avg_rating = reviews_summary.get('avg_rating') or 4.8
+        total_reviews = reviews_summary.get('total_reviews') or 127
+        
+        member_since = client.created_at.year if client.created_at else 2020
+        
+        if client_profile:
+            business_name = client_profile.business_name
+            business_type = client_profile.get_business_type_display() if hasattr(client_profile, 'get_business_type_display') else client_profile.business_type
+            employees = f"{client_profile.no_of_employees}+ employees" if client_profile.no_of_employees else "250+ employees"
+        else:
+            business_name = client.full_name
+            business_type = "Healthcare"
+            employees = "250+ employees"
+            
+        request = self.context.get('request')
+        profile_picture_url = None
+        if client.profile_picture:
+            if request:
+                profile_picture_url = request.build_absolute_uri(client.profile_picture.url)
+            else:
+                profile_picture_url = client.profile_picture.url
+                
+        return {
+            "business_name": business_name,
+            "business_type": business_type,
+            "profile_picture": profile_picture_url,
+            "rating": round(float(avg_rating), 1),
+            "reviews_count": total_reviews,
+            "no_of_employees": employees,
+            "member_since": member_since
+        }
+
+    def get_service_details(self, obj):
+        pkg = obj.service_package
+        if not pkg:
+            return {}
+            
+        features_list = [f.name for f in pkg.features.all()]
+        features_str = ", ".join(features_list) if features_list else pkg.description
+        
+        duration_str = "30 minutes"
+        if obj.start_time and obj.end_time:
+            from datetime import datetime, date
+            dt1 = datetime.combine(date.today(), obj.start_time)
+            dt2 = datetime.combine(date.today(), obj.end_time)
+            diff = dt2 - dt1
+            minutes = int(diff.total_seconds() / 60)
+            if minutes > 0:
+                duration_str = f"{minutes} minutes"
+
+        return {
+            "name": pkg.name,
+            "features": features_str,
+            "duration": f"Estimated duration: {duration_str}"
+        }
+
+    def get_service_overview(self, obj):
+        loc_type_map = {
+            'home': "Mobile Blood Draw",
+            'hospital': "In-Clinic Phlebotomy",
+            'lab': "Laboratory Testing"
+        }
+        service_name = loc_type_map.get(obj.location_type, "Mobile Blood Draw")
+        date_str = obj.appointment_date.strftime("%B %d, %Y") if obj.appointment_date else "N/A"
+        time_str = obj.start_time.strftime("%I:%M %p") if obj.start_time else "N/A"
+        
+        pkg = obj.service_package
+        total_amount = f"${pkg.price}" if pkg else "$0.00"
+
+        return {
+            "service": service_name,
+            "date": date_str,
+            "time": time_str,
+            "total_amount": total_amount
+        }
 

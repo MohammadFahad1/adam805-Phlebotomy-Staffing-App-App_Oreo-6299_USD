@@ -408,3 +408,171 @@ class WalletAndPayoutTests(APITestCase):
         assignment = JobAssignment.objects.get(job=job)
         self.assertEqual(assignment.status, JobAssignment.ACTIVE)
 
+
+class PatientScreenAPITests(APITestCase):
+
+    def setUp(self):
+        # Create users
+        self.client_user = User.objects.create_user(
+            email="client_patient_test@example.com",
+            password="testpassword123",
+            full_name="Jane Client",
+            phone_number="1231231230",
+            gender="female",
+            dob="1992-01-01",
+            role=User.CLIENT
+        )
+        self.phleb_user = User.objects.create_user(
+            email="phleb_patient_test@example.com",
+            password="testpassword123",
+            full_name="Bob Phleb",
+            phone_number="1234123412",
+            gender="male",
+            dob="1991-01-01",
+            role=User.PHLEBOTOMIST
+        )
+        self.other_client_user = User.objects.create_user(
+            email="other_client@example.com",
+            password="testpassword123",
+            full_name="Other Client",
+            phone_number="0001112223",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.service_package = ServicePackage.objects.create(
+            name="Patient Test Package",
+            description="Test package description",
+            price=89.00,
+            is_active=True
+        )
+        
+        # Create patients
+        self.patient1 = PatientProfile.objects.create(
+            first_name="Fahmida",
+            last_name="Tasnim",
+            email="fahmida@example.com",
+            phone_number="+1 555-0123",
+            dob=datetime.date(1990, 6, 15),
+            gender="female"
+        )
+        self.patient2 = PatientProfile.objects.create(
+            first_name="John",
+            last_name="Doe",
+            email="john@example.com",
+            phone_number="+1 555-0124",
+            dob=datetime.date(1985, 10, 10),
+            gender="male"
+        )
+        
+        # Create appointments
+        # Client 1 owns appointment 1
+        self.appointment1 = Appointment.objects.create(
+            patient=self.patient1,
+            client=self.client_user,
+            service_package=self.service_package,
+            appointment_date=datetime.date(2024, 12, 15),
+            start_time=datetime.time(10, 30),
+            location_type="home",
+            location="1234 Oak Street, Apt 5B, Springfield, IL 62701",
+            special_requests="Patient requires fasting blood work. Last meal 12 hours ago.",
+            status=Appointment.CONFIRMED
+        )
+        
+        # Client 2 owns appointment 2
+        self.appointment2 = Appointment.objects.create(
+            patient=self.patient2,
+            client=self.other_client_user,
+            service_package=self.service_package,
+            appointment_date=datetime.date(2024, 12, 16),
+            start_time=datetime.time(11, 30),
+            location_type="hospital",
+            location="City Clinic Room 12",
+            status=Appointment.CONFIRMED
+        )
+
+    def test_patient_list_for_client(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('patient-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should see only patient1's appointment
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['appointment_id'], self.appointment1.id)
+        self.assertEqual(results[0]['patient_name'], "Fahmida Tasnim")
+        self.assertTrue(results[0]['patient_id'].startswith("SID-"))
+
+    def test_patient_list_for_phlebotomist(self):
+        # First, phlebotomist has no jobs assigned, so list should be empty
+        self.client.force_authenticate(user=self.phleb_user)
+        url = reverse('patient-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 0)
+        
+        # Assign phlebotomist to job for appointment2
+        from jobs.models import Job, JobAssignment
+        job = Job.objects.create(
+            id="JB-24-999999",
+            appointment=self.appointment2,
+            client=self.other_client_user,
+            title="Job 2",
+            description="Desc 2",
+            location="City Clinic",
+            shift_date=datetime.date(2024, 12, 16),
+            shift_start=datetime.time(11, 30),
+            shift_end=datetime.time(12, 30),
+            pay_rate=89.00,
+            status=Job.APPROVED
+        )
+        JobAssignment.objects.create(
+            job=job,
+            phlebotomist=self.phleb_user,
+            status=JobAssignment.ACTIVE
+        )
+        
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should see patient2's appointment now
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['appointment_id'], self.appointment2.id)
+        self.assertEqual(results[0]['patient_name'], "John Doe")
+
+    def test_patient_appointment_detail(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('patient-appointment-detail', kwargs={'pk': self.appointment1.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        data = response.data
+        # Verify patient info
+        self.assertEqual(data['patient_info']['name'], "Fahmida Tasnim")
+        self.assertIn("years", data['patient_info']['age'])
+        self.assertEqual(data['patient_info']['phone'], "+1 555-0123")
+        self.assertEqual(data['patient_info']['date'], "Dec 15, 2024")
+        self.assertEqual(data['patient_info']['time'], "10:30 AM")
+        
+        # Verify medical info
+        self.assertEqual(data['medical_info']['special_instructions'], "Patient requires fasting blood work. Last meal 12 hours ago.")
+        
+        # Verify location
+        self.assertEqual(data['location']['type'], "Patient's Home")
+        self.assertEqual(data['location']['address'], "1234 Oak Street, Apt 5B, Springfield, IL 62701")
+        
+        # Verify service details
+        self.assertEqual(data['service_details']['name'], "Patient Test Package")
+        
+        # Verify service overview
+        self.assertEqual(data['service_overview']['service'], "Mobile Blood Draw")
+        self.assertEqual(data['service_overview']['total_amount'], "$89.00")
+
+    def test_patient_appointment_detail_permissions(self):
+        # Client 1 trying to access Client 2's appointment should be forbidden
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('patient-appointment-detail', kwargs={'pk': self.appointment2.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
