@@ -3617,6 +3617,124 @@ class AdminPayrollDetailAPIView(APIView):
         }
 
 
+# Terms and Conditions Management
+class AdminTermsAndConditionsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @swagger_auto_schema(
+        tags=['Dashboard - Terms and Conditions'],
+        operation_description="Get the latest Terms and Conditions.",
+        responses={200: openapi.Response("Latest terms and conditions")}
+    )
+    def get(self, request):
+        from dashboard.models import TermsOfService
+        latest_terms = TermsOfService.objects.order_by('-created_at').first()
+        if not latest_terms:
+            default_description = (
+                "1. Terms of Service\n"
+                "By using Phlebotomist services, you agree to provide accurate healthcare services in accordance with "
+                "professional standards and applicable regulations. This agreement establishes the framework for our partnership.\n\n"
+                "Key Points:\n"
+                "• Professional liability coverage required\n"
+                "• Compliance with HIPAA regulations\n"
+                "• 24-hour cancellation policy\n\n"
+                "2. Payment Policies\n"
+                "Payment terms are Net 15 days from service completion. Direct deposit is our preferred payment method, "
+                "with payments processed bi-weekly.\n\n"
+                "Average processing time: 2-3 business days\n\n"
+                "3. Legal Disclaimers\n"
+                "This agreement is governed by state healthcare regulations. Both parties acknowledge understanding of "
+                "their rights and responsibilities under this partnership."
+            )
+            latest_terms = TermsOfService.objects.create(
+                title="Terms And Condition",
+                description=default_description
+            )
+        return Response({
+            "id": latest_terms.id,
+            "title": latest_terms.title,
+            "description": latest_terms.description,
+            "created_at": latest_terms.created_at,
+            "updated_at": latest_terms.updated_at
+        }, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        tags=['Dashboard - Terms and Conditions'],
+        operation_description="Update or create Terms and Conditions.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['title', 'description'],
+            properties={
+                'title': openapi.Schema(type=openapi.TYPE_STRING),
+                'description': openapi.Schema(type=openapi.TYPE_STRING)
+            }
+        ),
+        responses={200: openapi.Response("Updated terms and conditions")}
+    )
+    def put(self, request):
+        from dashboard.models import TermsOfService
+        title = request.data.get('title', 'Terms And Condition')
+        description = request.data.get('description', '')
+
+        latest_terms = TermsOfService.objects.order_by('-created_at').first()
+        if latest_terms:
+            latest_terms.title = title
+            latest_terms.description = description
+            latest_terms.save()
+        else:
+            latest_terms = TermsOfService.objects.create(title=title, description=description)
+
+        return Response({
+            "id": latest_terms.id,
+            "title": latest_terms.title,
+            "description": latest_terms.description,
+            "created_at": latest_terms.created_at,
+            "updated_at": latest_terms.updated_at
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        return self.put(request)
+
+
+class PublicTermsAndConditionsView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        tags=['Terms and Conditions'],
+        operation_description="Get the latest Terms and Conditions publicly.",
+        responses={200: openapi.Response("Latest terms and conditions")}
+    )
+    def get(self, request):
+        from dashboard.models import TermsOfService
+        latest_terms = TermsOfService.objects.order_by('-created_at').first()
+        if not latest_terms:
+            default_description = (
+                "1. Terms of Service\n"
+                "By using Phlebotomist services, you agree to provide accurate healthcare services in accordance with "
+                "professional standards and applicable regulations. This agreement establishes the framework for our partnership.\n\n"
+                "Key Points:\n"
+                "• Professional liability coverage required\n"
+                "• Compliance with HIPAA regulations\n"
+                "• 24-hour cancellation policy\n\n"
+                "2. Payment Policies\n"
+                "Payment terms are Net 15 days from service completion. Direct deposit is our preferred payment method, "
+                "with payments processed bi-weekly.\n\n"
+                "Average processing time: 2-3 business days\n\n"
+                "3. Legal Disclaimers\n"
+                "This agreement is governed by state healthcare regulations. Both parties acknowledge understanding of "
+                "their rights and responsibilities under this partnership."
+            )
+            latest_terms = TermsOfService.objects.create(
+                title="Terms And Condition",
+                description=default_description
+            )
+        return Response({
+            "id": latest_terms.id,
+            "title": latest_terms.title,
+            "description": latest_terms.description,
+            "created_at": latest_terms.created_at,
+            "updated_at": latest_terms.updated_at
+        }, status=status.HTTP_200_OK)
 
 
 

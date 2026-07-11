@@ -48,4 +48,8 @@ urlpatterns = [
     # Payroll Management
     path('payroll/', views.AdminPayrollAPIView.as_view(), name='admin-payroll'),
     path('payroll/<str:pk>/', views.AdminPayrollDetailAPIView.as_view(), name='admin-payroll-detail'),
+
+    # Terms & Conditions (Settings)
+    path('admin/terms-and-conditions/', views.AdminTermsAndConditionsView.as_view(), name='admin-terms-and-conditions'),
+    path('terms-and-conditions/', views.PublicTermsAndConditionsView.as_view(), name='public-terms-and-conditions'),
 ]
