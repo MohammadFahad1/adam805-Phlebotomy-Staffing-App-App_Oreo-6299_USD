@@ -2130,11 +2130,7 @@ class DashboardReviewsListAPIView(NewAPIView):
 class DashboardReviewDetailAPIView(NewAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = serializers.ReviewSerializer
-    http_method_names = ['get', 'delete', 'patch']
-    
-    def get_queryset(self):
-        from communication.models import Review
-        return Review.objects.all()
+    http_method_names = ['get', 'patch', 'delete']
 
     @swagger_auto_schema(tags=["Dashboard - Communication and Reviews Moderation"])
     def get(self, request, pk):
