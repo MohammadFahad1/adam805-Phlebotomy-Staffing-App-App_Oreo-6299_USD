@@ -840,7 +840,7 @@ class PatientListView(NewAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = serializers.PatientListSerializer
 
-    @swagger_auto_schema(tags=["App - Patient Management"])
+    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def get(self, request):
         """
         **Get list of patients for logged-in Client or Phlebotomist**
@@ -870,7 +870,7 @@ class PatientAppointmentDetailView(NewAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = serializers.PatientAppointmentDetailSerializer
 
-    @swagger_auto_schema(tags=["App - Patient Management"])
+    @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
     def get(self, request, pk):
         """
         **Get detailed appointment and patient information**

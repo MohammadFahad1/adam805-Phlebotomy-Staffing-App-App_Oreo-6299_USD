@@ -14,11 +14,20 @@ class Message(models.Model):
         return f"Message from {self.sender} to {self.receiver} - Read: {self.is_read}"
 
 class Review(models.Model):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (APPROVED, 'Approved'),
+        (REJECTED, 'Rejected'),
+    ]
     job = models.ForeignKey('jobs.Job', on_delete=models.CASCADE, related_name='reviews')
     reviewer = models.ForeignKey('authentication.User', on_delete=models.CASCADE, related_name='reviews_as_reviewer')
     reviewed = models.ForeignKey('authentication.User', on_delete=models.CASCADE, related_name='reviews_as_reviewed')
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField()
+    status = models.CharField(max_length=50, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
