@@ -2187,7 +2187,6 @@ class DashboardReviewDetailAPIView(NewAPIView):
         ```
 
         **Response**:
-        
         ```
         {
             "detail": "Review deleted successfully."
