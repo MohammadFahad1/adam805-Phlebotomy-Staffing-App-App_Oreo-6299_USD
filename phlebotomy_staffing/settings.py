@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'fcm_django',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -248,3 +249,22 @@ CELERY_BEAT_SCHEDULE = {
 
 FRONTEND_URL=config('FRONTEND_URL', default='http://localhost:3000', cast=str)
 SITE_URL=config('SITE_URL', default='http://localhost:8000', cast=str)
+
+# Firebase Admin SDK Initialization
+import firebase_admin
+from firebase_admin import credentials
+
+FIREBASE_APP = None
+cred_path = BASE_DIR / 'serviceAccountKey.json'
+if cred_path.exists():
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(str(cred_path))
+        FIREBASE_APP = firebase_admin.initialize_app(cred)
+    else:
+        FIREBASE_APP = firebase_admin.get_app()
+
+FCM_DJANGO_SETTINGS = {
+    "DEFAULT_FIREBASE_APP": FIREBASE_APP,
+    "VERBOSE": True,
+    "DELETE_INACTIVE_DEVICES": True,
+}

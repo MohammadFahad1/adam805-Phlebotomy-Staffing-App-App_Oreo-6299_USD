@@ -3692,6 +3692,11 @@ class AdminTermsAndConditionsView(APIView):
             "updated_at": latest_terms.updated_at
         }, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        tags=['Dashboard - Terms and Conditions'],
+        operation_description="Get the latest Terms and Conditions.",
+        responses={200: openapi.Response("Latest terms and conditions")}
+    )
     def post(self, request):
         return self.put(request)
 
