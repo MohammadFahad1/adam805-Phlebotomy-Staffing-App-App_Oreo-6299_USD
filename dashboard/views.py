@@ -2576,6 +2576,7 @@ class AnalyticsReportingAPIView(NewAPIView):
 
 # Job matching admin view
 class ManualJobMatchingView(APIView):
+    serializer_class = serializers.ManualJobMatchingSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     @swagger_auto_schema(
