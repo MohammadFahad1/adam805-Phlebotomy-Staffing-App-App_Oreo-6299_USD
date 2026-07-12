@@ -2796,17 +2796,8 @@ class ManualJobMatchingView(APIView):
         serializer = serializers.ManualJobMatchingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        job_id = serializer.validated_data.get("job_id") or serializer.validated_data.get("job_appointment_id")
+        job_id = serializer.validated_data.get("job_id")
         phlebotomist_id = serializer.validated_data.get("phlebotomist_id")
-        phlebotomist_ids = serializer.validated_data.get("phlebotomist_ids")
-
-        if not phlebotomist_id and phlebotomist_ids:
-            phlebotomist_id = phlebotomist_ids[0]
-
-        if not job_id:
-            raise ValidationError({"detail": "job_id is required."})
-        if not phlebotomist_id:
-            raise ValidationError({"detail": "phlebotomist_id is required."})
 
         # Check if job is mock or DB job
         if str(job_id).startswith("JB-25-0001"):

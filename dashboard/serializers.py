@@ -409,26 +409,12 @@ class ReviewStatusUpdateSerializer(serializers.ModelSerializer):
 
 class ManualJobMatchingSerializer(serializers.Serializer):
     job_id = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
+        required=True,
         help_text="ID of the job. Can be a mock ID like 'JB-25-000101' or a DB job ID."
     )
-    job_appointment_id = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        help_text="Alternative job ID key."
-    )
     phlebotomist_id = serializers.IntegerField(
-        required=False,
-        allow_null=True,
+        required=True,
         help_text="ID of the phlebotomist user."
     )
-    phlebotomist_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        required=False,
-        allow_null=True,
-        help_text="List of phlebotomist user IDs. If phlebotomist_id is not provided, the first ID from this list will be used."
-    )
+
 

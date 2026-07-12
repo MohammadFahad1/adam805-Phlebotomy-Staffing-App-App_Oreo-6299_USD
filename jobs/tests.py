@@ -1530,6 +1530,9 @@ class ClientHomeAPIViewTests(APITestCase):
             job_type=Job.URGENT
         )
 
+        # Clear any auto-generated notifications from signals
+        Notification.objects.filter(user=self.client_user).delete()
+
         # Create Notification
         self.notification = Notification.objects.create(
             user=self.client_user,
