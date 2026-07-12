@@ -2782,6 +2782,7 @@ class ManualJobMatchingView(APIView):
     @swagger_auto_schema(
         tags=['Dashboard - Job Matching'],
         operation_description="Invite a phlebotomist to a job.",
+        request_body=serializers.ManualJobMatchingSerializer,
         responses={201: openapi.Response("Invitation sent successfully")}
     )
     def post(self, request):
@@ -2791,9 +2792,12 @@ class ManualJobMatchingView(APIView):
         from django.conf import settings
         from rest_framework.exceptions import ValidationError
 
-        job_id = request.data.get("job_id") or request.data.get("job_appointment_id")
-        phlebotomist_id = request.data.get("phlebotomist_id")
-        phlebotomist_ids = request.data.get("phlebotomist_ids")
+        serializer = serializers.ManualJobMatchingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        job_id = serializer.validated_data.get("job_id") or serializer.validated_data.get("job_appointment_id")
+        phlebotomist_id = serializer.validated_data.get("phlebotomist_id")
+        phlebotomist_ids = serializer.validated_data.get("phlebotomist_ids")
 
         if not phlebotomist_id and phlebotomist_ids:
             phlebotomist_id = phlebotomist_ids[0]
