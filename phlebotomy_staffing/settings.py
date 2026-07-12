@@ -169,8 +169,8 @@ STORAGES = {
 }
 
 # Proxy & SSL Settings for VPS Nginx/LoadBalancer (e.g. Swagger mixed content fix)
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-# USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
 
 # Media files
 MEDIA_URL = 'media/'
