@@ -197,15 +197,6 @@ class CreateAppointmentView(NewAPIView):
             data = dict(request.data)
         data.update(request.FILES)
 
-        # 2. Terms and Consent checks
-        terms_agreement = data.get('terms_agreement') or data.get('terms') or data.get('termsAgreement')
-        consent_communication = data.get('consent_communication') or data.get('consent') or data.get('consentCommunication')
-        
-        if not terms_agreement or str(terms_agreement).lower() == 'false':
-            return Response({'terms_agreement': ['You must agree to the Terms of Service and Privacy Policy.']}, status=status.HTTP_400_BAD_REQUEST)
-        if not consent_communication or str(consent_communication).lower() == 'false':
-            return Response({'consent_communication': ['You must consent to receive appointment confirmations and results.']}, status=status.HTTP_400_BAD_REQUEST)
-
         # 3. Prescription validations (File Size < 5MB and extension in PDF, JPG, JPEG, PNG)
         prescription = request.FILES.get('prescription') or data.get('prescription')
         if prescription and not isinstance(prescription, str):
