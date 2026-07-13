@@ -1446,6 +1446,7 @@ class ClientProfileView(NewAPIView):
                     "overall_rating":  overall_rating,
                     "total_reviews":   total_reviews,
                     "gender":          user.gender,
+                    "phone_number":    user.phone_number,
                     "member_since":    user.created_at.strftime("%B %Y"),
                 },
                 "stats": {
