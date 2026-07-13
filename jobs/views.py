@@ -2596,8 +2596,12 @@ class ClientAppointmentDetailAPIView(APIView):
         prescription_file_type = ""
         if appointment.prescription and appointment.prescription.name:
             _, ext = os.path.splitext(appointment.prescription.name)
-            prescription_file_type = ext.lower().replace('.', '')
-            if not prescription_file_type:
+            ext_cleaned = ext.lower().replace('.', '')
+            if ext_cleaned in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'):
+                prescription_file_type = "image"
+            elif ext_cleaned in ('pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'csv'):
+                prescription_file_type = "document"
+            else:
                 prescription_file_type = "file"
 
         response_data = {
