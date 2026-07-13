@@ -3962,22 +3962,14 @@ class ServicePackagesAPIView(APIView):
         tags=['Dashboard - Service Packages'],
         operation_description="Create a new service package.",
         consumes=['multipart/form-data'],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            required=['name', 'price'],
-            properties={
-                'name': openapi.Schema(type=openapi.TYPE_STRING, description="Name of the service package"),
-                'description': openapi.Schema(type=openapi.TYPE_STRING, description="Description of the service package"),
-                'price': openapi.Schema(type=openapi.TYPE_NUMBER, description="Price of the service package"),
-                'is_active': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
-                'icon': openapi.Schema(type=openapi.TYPE_FILE, description="Icon image file"),
-                'features': openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=openapi.Items(type=openapi.TYPE_STRING),
-                    description="List of feature names (strings)"
-                )
-            }
-        ),
+        manual_parameters=[
+            openapi.Parameter('name', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description="Name of the service package"),
+            openapi.Parameter('description', openapi.IN_FORM, type=openapi.TYPE_STRING, description="Description of the service package"),
+            openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, required=True, description="Price of the service package"),
+            openapi.Parameter('is_active', openapi.IN_FORM, type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
+            openapi.Parameter('icon', openapi.IN_FORM, type=openapi.TYPE_FILE, description="Icon image file"),
+            openapi.Parameter('features', openapi.IN_FORM, type=openapi.TYPE_STRING, description="JSON array of features or feature names, e.g. [\"Feature A\", \"Feature B\"]")
+        ],
         responses={201: openapi.Response("Service package created successfully")}
     )
     def post(self, request):
@@ -4062,21 +4054,14 @@ class ServicePackageDetailAPIView(APIView):
         tags=['Dashboard - Service Packages'],
         operation_description="Update a service package.",
         consumes=['multipart/form-data'],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'name': openapi.Schema(type=openapi.TYPE_STRING, description="Name of the service package"),
-                'description': openapi.Schema(type=openapi.TYPE_STRING, description="Description of the service package"),
-                'price': openapi.Schema(type=openapi.TYPE_NUMBER, description="Price of the service package"),
-                'is_active': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
-                'icon': openapi.Schema(type=openapi.TYPE_FILE, description="Icon image file"),
-                'features': openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=openapi.Items(type=openapi.TYPE_STRING),
-                    description="List of feature names (strings)"
-                )
-            }
-        ),
+        manual_parameters=[
+            openapi.Parameter('name', openapi.IN_FORM, type=openapi.TYPE_STRING, description="Name of the service package"),
+            openapi.Parameter('description', openapi.IN_FORM, type=openapi.TYPE_STRING, description="Description of the service package"),
+            openapi.Parameter('price', openapi.IN_FORM, type=openapi.TYPE_NUMBER, description="Price of the service package"),
+            openapi.Parameter('is_active', openapi.IN_FORM, type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
+            openapi.Parameter('icon', openapi.IN_FORM, type=openapi.TYPE_FILE, description="Icon image file"),
+            openapi.Parameter('features', openapi.IN_FORM, type=openapi.TYPE_STRING, description="JSON array of features or feature names, e.g. [\"Feature A\", \"Feature B\"]")
+        ],
         responses={200: openapi.Response("Service package updated successfully")}
     )
     def put(self, request, package_id):
