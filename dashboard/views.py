@@ -1682,30 +1682,54 @@ class AdminAssignAppointmentUserView(NewAPIView):
                 diff = dt2 - dt1
                 shift_duration = max(1, int(diff.total_seconds() / 3600))
                 
-            job = Job.objects.create(
-                id=job_id,
-                appointment=appointment,
-                client=appointment.client,
-                title=job_title,
-                description=job_desc,
-                location=location,
-                city=city,
-                shift_date=appointment.appointment_date,
-                shift_start=appointment.start_time,
-                shift_end=appointment.end_time or appointment.start_time,
-                shift_duration=shift_duration,
-                pay_rate=appointment.service_package.price,
-                pay_type='flat_rate',
-                status=Job.APPROVED
-            )
+            job = Job.objects.filter(appointment=appointment).first()
+            if job:
+                job.client = appointment.client
+                job.title = job_title
+                job.description = job_desc
+                job.location = location
+                job.city = city
+                job.shift_date = appointment.appointment_date
+                job.shift_start = appointment.start_time
+                job.shift_end = appointment.end_time or appointment.start_time
+                job.shift_duration = shift_duration
+                job.pay_rate = appointment.service_package.price
+                job.pay_type = 'flat_rate'
+                job.status = Job.APPROVED
+                job.save()
+            else:
+                job = Job.objects.create(
+                    id=job_id,
+                    appointment=appointment,
+                    client=appointment.client,
+                    title=job_title,
+                    description=job_desc,
+                    location=location,
+                    city=city,
+                    shift_date=appointment.appointment_date,
+                    shift_start=appointment.start_time,
+                    shift_end=appointment.end_time or appointment.start_time,
+                    shift_duration=shift_duration,
+                    pay_rate=appointment.service_package.price,
+                    pay_type='flat_rate',
+                    status=Job.APPROVED
+                )
             
-            job_assignment = JobAssignment.objects.create(
-                job=job,
-                phlebotomist=assignee,
-                client=appointment.client,
-                signed_by_phlebotomist=True,
-                status=JobAssignment.ACTIVE
-            )
+            job_assignment = JobAssignment.objects.filter(job=job).first()
+            if job_assignment:
+                job_assignment.phlebotomist = assignee
+                job_assignment.client = appointment.client
+                job_assignment.signed_by_phlebotomist = True
+                job_assignment.status = JobAssignment.ACTIVE
+                job_assignment.save()
+            else:
+                job_assignment = JobAssignment.objects.create(
+                    job=job,
+                    phlebotomist=assignee,
+                    client=appointment.client,
+                    signed_by_phlebotomist=True,
+                    status=JobAssignment.ACTIVE
+                )
             
             job.status = Job.IN_PROGRESS
             job.save()
