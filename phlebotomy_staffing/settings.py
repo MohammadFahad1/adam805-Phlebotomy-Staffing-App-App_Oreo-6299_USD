@@ -247,8 +247,8 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-FRONTEND_URL=config('FRONTEND_URL', default='http://localhost:3000', cast=str)
-SITE_URL=config('SITE_URL', default='http://localhost:8000', cast=str)
+FRONTEND_URL=config('FRONTEND_URL', default='https://primepathstaff.com', cast=str)
+SITE_URL=config('SITE_URL', default='https://primepathstaff.com', cast=str)
 
 # Firebase Admin SDK Initialization
 import firebase_admin
