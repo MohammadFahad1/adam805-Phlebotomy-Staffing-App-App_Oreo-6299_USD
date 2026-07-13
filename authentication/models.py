@@ -175,14 +175,14 @@ class Client(models.Model):
         return f"Client: {self.client.full_name}"
 
 class ClientDocument(models.Model):
-    LICENSE = 'license'
-    SIGNATURE = 'signature'
-    DOCUMENT_TYPE_CHOICES = [
-        (LICENSE, 'License'),
-        (SIGNATURE, 'signature'),
-    ]
+    # LICENSE = 'license'
+    # SIGNATURE = 'signature'
+    # DOCUMENT_TYPE_CHOICES = [
+    #     (LICENSE, 'License'),
+    #     (SIGNATURE, 'signature'),
+    # ]
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='documents')
-    document_name = models.CharField(max_length=100, choices=DOCUMENT_TYPE_CHOICES)
+    document_name = models.CharField(max_length=100)
     document_file = models.FileField(upload_to='client_documents/')
     approved = models.BooleanField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
