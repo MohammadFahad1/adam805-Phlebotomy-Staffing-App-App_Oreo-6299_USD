@@ -55,4 +55,10 @@ urlpatterns = [
     # Terms & Conditions (Settings)
     path('admin/terms-and-conditions/', views.AdminTermsAndConditionsView.as_view(), name='admin-terms-and-conditions'),
     path('terms-and-conditions/', views.PublicTermsAndConditionsView.as_view(), name='public-terms-and-conditions'),
+
+    # Service Packages 
+    path('service-packages/', views.ServicePackagesAPIView.as_view(), name='service-packages'),
+    path('service-packages/<int:package_id>/', views.ServicePackageDetailAPIView.as_view(), name='service-package-detail'),
+    path('service-packages/features/', views.ServicePackageFeaturesAPIView.as_view(), name='service-package-features'),
+    path('service-packages/features/<int:feature_id>/', views.ServicePackageFeatureDetailAPIView.as_view(), name='service-package-feature-detail'),
 ]

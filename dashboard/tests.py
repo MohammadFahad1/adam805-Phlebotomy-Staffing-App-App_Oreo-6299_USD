@@ -860,6 +860,122 @@ class SuspendUserAccountAPITests(APITestCase):
         self.assertFalse(self.admin_user.suspended)
 
 
+class ServicePackagesAPITests(APITestCase):
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.admin_user = User.objects.create_superuser(
+            email="admin_packages@example.com",
+            password="adminpassword",
+            full_name="Admin Packages",
+            phone_number="1234567810",
+            gender="male",
+            dob="1980-01-01",
+            role=User.ADMIN
+        )
+        self.client_user = User.objects.create_user(
+            email="client_packages@example.com",
+            password="clientpassword",
+            full_name="Client Packages",
+            phone_number="1234567811",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        from appointments.models import ServicePackage, ServicePackageFeature
+        self.package = ServicePackage.objects.create(
+            name="Premium Package",
+            description="Premium package description",
+            price=99.99
+        )
+        self.feature = ServicePackageFeature.objects.create(
+            service_package=self.package,
+            name="Feature 1"
+        )
+        self.list_url = reverse('service-packages')
+        self.detail_url = reverse('service-package-detail', kwargs={'package_id': self.package.id})
+        self.features_url = reverse('service-package-features')
+        self.feature_detail_url = reverse('service-package-feature-detail', kwargs={'feature_id': self.feature.id})
+
+    def test_get_service_packages(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], "Premium Package")
+
+    def test_create_service_package(self):
+        self.client.force_authenticate(user=self.admin_user)
+        payload = {
+            "name": "Standard Package",
+            "description": "Standard package description",
+            "price": 49.99,
+            "features": ["Feature A", "Feature B"]
+        }
+        response = self.client.post(self.list_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], "Standard Package")
+        
+        from appointments.models import ServicePackage
+        package = ServicePackage.objects.get(name="Standard Package")
+        self.assertEqual(package.features.count(), 2)
+
+    def test_update_service_package(self):
+        self.client.force_authenticate(user=self.admin_user)
+        payload = {
+            "name": "Updated Premium Package",
+            "price": 109.99,
+            "features": ["Updated Feature 1", "Updated Feature 2"]
+        }
+        response = self.client.put(self.detail_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.package.refresh_from_db()
+        self.assertEqual(self.package.name, "Updated Premium Package")
+        self.assertEqual(float(self.package.price), 109.99)
+        self.assertEqual(self.package.features.count(), 2)
+
+    def test_delete_service_package(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        from appointments.models import ServicePackage
+        self.assertFalse(ServicePackage.objects.filter(id=self.package.id).exists())
+
+    def test_get_features(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.get(self.features_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_create_feature(self):
+        self.client.force_authenticate(user=self.admin_user)
+        payload = {
+            "name": "New Feature",
+            "service_package_id": self.package.id
+        }
+        response = self.client.post(self.features_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], "New Feature")
+
+    def test_update_feature(self):
+        self.client.force_authenticate(user=self.admin_user)
+        payload = {
+            "name": "Renamed Feature 1"
+        }
+        response = self.client.put(self.feature_detail_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.feature.refresh_from_db()
+        self.assertEqual(self.feature.name, "Renamed Feature 1")
+
+    def test_delete_feature(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.delete(self.feature_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        from appointments.models import ServicePackageFeature
+        self.assertFalse(ServicePackageFeature.objects.filter(id=self.feature.id).exists())
+
+
 
 
 

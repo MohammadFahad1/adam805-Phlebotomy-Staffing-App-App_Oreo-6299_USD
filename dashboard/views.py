@@ -3931,6 +3931,364 @@ class PublicTermsAndConditionsView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+# Service Packages Management
+class ServicePackagesAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Get all service packages.",
+        responses={200: openapi.Response("List of service packages")}
+    )
+    def get(self, request):
+        from appointments.models import ServicePackage
+        service_packages = ServicePackage.objects.all()
+        service_packages_data = []
+        for service_package in service_packages:
+            service_packages_data.append({
+                "id": service_package.id,
+                "icon": request.build_absolute_uri(service_package.icon.url) if service_package.icon else None,
+                "name": service_package.name,
+                "description": service_package.description,
+                "price": str(service_package.price),
+                "is_active": service_package.is_active,
+                "features": list(service_package.features.all().values('id', 'name')),
+                "created_at": service_package.created_at,
+                "updated_at": service_package.updated_at
+            })
+        return Response(service_packages_data, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Create a new service package.",
+        consumes=['multipart/form-data'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['name', 'price'],
+            properties={
+                'name': openapi.Schema(type=openapi.TYPE_STRING, description="Name of the service package"),
+                'description': openapi.Schema(type=openapi.TYPE_STRING, description="Description of the service package"),
+                'price': openapi.Schema(type=openapi.TYPE_NUMBER, description="Price of the service package"),
+                'is_active': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
+                'icon': openapi.Schema(type=openapi.TYPE_FILE, description="Icon image file"),
+                'features': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(type=openapi.TYPE_STRING),
+                    description="List of feature names (strings)"
+                )
+            }
+        ),
+        responses={201: openapi.Response("Service package created successfully")}
+    )
+    def post(self, request):
+        from appointments.models import ServicePackage, ServicePackageFeature
+        name = request.data.get('name')
+        description = request.data.get('description', '')
+        price = request.data.get('price')
+        is_active = request.data.get('is_active', True)
+        icon = request.FILES.get('icon')
+
+        if not name or price is None:
+            return Response({"detail": "Name and price are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Handle is_active string representation from multipart-form
+        if isinstance(is_active, str):
+            is_active = is_active.lower() == 'true'
+
+        features_data = request.data.get('features')
+
+        service_package = ServicePackage.objects.create(
+            name=name,
+            description=description,
+            price=price,
+            is_active=bool(is_active),
+            icon=icon
+        )
+
+        if features_data:
+            if isinstance(features_data, str):
+                import json
+                try:
+                    features_data = json.loads(features_data)
+                except Exception:
+                    pass
+            if isinstance(features_data, list):
+                for f_name in features_data:
+                    if isinstance(f_name, dict):
+                        f_name = f_name.get('name', '')
+                    if f_name:
+                        ServicePackageFeature.objects.create(service_package=service_package, name=str(f_name))
+
+        return Response({
+            "id": service_package.id,
+            "icon": request.build_absolute_uri(service_package.icon.url) if service_package.icon else None,
+            "name": service_package.name,
+            "description": service_package.description,
+            "price": str(service_package.price),
+            "is_active": service_package.is_active,
+            "features": list(service_package.features.all().values('id', 'name')),
+            "created_at": service_package.created_at,
+            "updated_at": service_package.updated_at
+        }, status=status.HTTP_201_CREATED)
+
+class ServicePackageDetailAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Get a service package by ID.",
+        responses={200: openapi.Response("Service package details")}
+    )
+    def get(self, request, package_id):
+        from appointments.models import ServicePackage
+        try:
+            service_package = ServicePackage.objects.get(id=package_id)
+        except ServicePackage.DoesNotExist:
+            return Response({"detail": "Service package not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "id": service_package.id,
+            "icon": request.build_absolute_uri(service_package.icon.url) if service_package.icon else None,
+            "name": service_package.name,
+            "description": service_package.description,
+            "price": str(service_package.price),
+            "is_active": service_package.is_active,
+            "features": list(service_package.features.all().values('id', 'name')),
+            "created_at": service_package.created_at,
+            "updated_at": service_package.updated_at
+        }, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Update a service package.",
+        consumes=['multipart/form-data'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'name': openapi.Schema(type=openapi.TYPE_STRING, description="Name of the service package"),
+                'description': openapi.Schema(type=openapi.TYPE_STRING, description="Description of the service package"),
+                'price': openapi.Schema(type=openapi.TYPE_NUMBER, description="Price of the service package"),
+                'is_active': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether package is active"),
+                'icon': openapi.Schema(type=openapi.TYPE_FILE, description="Icon image file"),
+                'features': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(type=openapi.TYPE_STRING),
+                    description="List of feature names (strings)"
+                )
+            }
+        ),
+        responses={200: openapi.Response("Service package updated successfully")}
+    )
+    def put(self, request, package_id):
+        from appointments.models import ServicePackage, ServicePackageFeature
+        try:
+            service_package = ServicePackage.objects.get(id=package_id)
+        except ServicePackage.DoesNotExist:
+            return Response({"detail": "Service package not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        name = request.data.get('name')
+        if name is not None:
+            service_package.name = name
+        
+        description = request.data.get('description')
+        if description is not None:
+            service_package.description = description
+            
+        price = request.data.get('price')
+        if price is not None:
+            service_package.price = price
+            
+        is_active = request.data.get('is_active')
+        if is_active is not None:
+            if isinstance(is_active, str):
+                is_active = is_active.lower() == 'true'
+            service_package.is_active = bool(is_active)
+            
+        if 'icon' in request.FILES:
+            service_package.icon = request.FILES['icon']
+            
+        service_package.save()
+
+        if 'features' in request.data:
+            features_data = request.data.get('features')
+            if isinstance(features_data, str):
+                import json
+                try:
+                    features_data = json.loads(features_data)
+                except Exception:
+                    pass
+            if isinstance(features_data, list):
+                service_package.features.all().delete()
+                for f_name in features_data:
+                    if isinstance(f_name, dict):
+                        f_name = f_name.get('name', '')
+                    if f_name:
+                        ServicePackageFeature.objects.create(service_package=service_package, name=str(f_name))
+
+        return Response({
+            "id": service_package.id,
+            "icon": request.build_absolute_uri(service_package.icon.url) if service_package.icon else None,
+            "name": service_package.name,
+            "description": service_package.description,
+            "price": str(service_package.price),
+            "is_active": service_package.is_active,
+            "features": list(service_package.features.all().values('id', 'name')),
+            "created_at": service_package.created_at,
+            "updated_at": service_package.updated_at
+        }, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Delete a service package.",
+        responses={200: openapi.Response("Service package deleted successfully")}
+    )
+    def delete(self, request, package_id):
+        from appointments.models import ServicePackage
+        try:
+            service_package = ServicePackage.objects.get(id=package_id)
+        except ServicePackage.DoesNotExist:
+            return Response({"detail": "Service package not found"}, status=status.HTTP_404_NOT_FOUND)
+        service_package.delete()
+        return Response({"message": "Service package deleted successfully"}, status=status.HTTP_200_OK)
+
+class ServicePackageFeaturesAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Get all service package features.",
+        responses={200: openapi.Response("List of service package features")}
+    )
+    def get(self, request):
+        from appointments.models import ServicePackageFeature
+        service_package_id = request.query_params.get('service_package_id') or request.query_params.get('service_package')
+        if service_package_id:
+            service_package_features = ServicePackageFeature.objects.filter(service_package_id=service_package_id)
+        else:
+            service_package_features = ServicePackageFeature.objects.all()
+            
+        service_package_features_data = []
+        for service_package_feature in service_package_features:
+            service_package_features_data.append({
+                "id": service_package_feature.id,
+                "service_package_id": service_package_feature.service_package_id,
+                "name": service_package_feature.name,
+                "created_at": service_package_feature.created_at,
+                "updated_at": service_package_feature.updated_at
+            })
+        return Response(service_package_features_data, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Create a new service package feature.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['name', 'service_package_id'],
+            properties={
+                'name': openapi.Schema(type=openapi.TYPE_STRING),
+                'service_package_id': openapi.Schema(type=openapi.TYPE_INTEGER)
+            }
+        ),
+        responses={201: openapi.Response("Service package feature created successfully")}
+    )
+    def post(self, request):
+        from appointments.models import ServicePackageFeature, ServicePackage
+        name = request.data.get('name')
+        service_package_id = request.data.get('service_package_id') or request.data.get('service_package')
+        if not name or not service_package_id:
+            return Response({"detail": "name and service_package_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            package = ServicePackage.objects.get(id=service_package_id)
+        except ServicePackage.DoesNotExist:
+            return Response({"detail": "Service package not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        service_package_feature = ServicePackageFeature.objects.create(service_package=package, name=name)
+        return Response({
+            "id": service_package_feature.id,
+            "service_package_id": service_package_feature.service_package_id,
+            "name": service_package_feature.name,
+            "created_at": service_package_feature.created_at,
+            "updated_at": service_package_feature.updated_at
+        }, status=status.HTTP_201_CREATED)
+
+class ServicePackageFeatureDetailAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Get a service package feature by ID.",
+        responses={200: openapi.Response("Service package feature details")}
+    )
+    def get(self, request, feature_id):
+        from appointments.models import ServicePackageFeature
+        try:
+            service_package_feature = ServicePackageFeature.objects.get(id=feature_id)
+        except ServicePackageFeature.DoesNotExist:
+            return Response({"detail": "Feature not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        return Response({
+            "id": service_package_feature.id,
+            "service_package_id": service_package_feature.service_package_id,
+            "name": service_package_feature.name,
+            "created_at": service_package_feature.created_at,
+            "updated_at": service_package_feature.updated_at
+        }, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Update a service package feature.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'name': openapi.Schema(type=openapi.TYPE_STRING),
+                'service_package_id': openapi.Schema(type=openapi.TYPE_INTEGER)
+            }
+        ),
+        responses={200: openapi.Response("Service package feature updated successfully")}
+    )
+    def put(self, request, feature_id):
+        from appointments.models import ServicePackageFeature, ServicePackage
+        try:
+            service_package_feature = ServicePackageFeature.objects.get(id=feature_id)
+        except ServicePackageFeature.DoesNotExist:
+            return Response({"detail": "Feature not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        name = request.data.get('name')
+        if name is not None:
+            service_package_feature.name = name
+            
+        service_package_id = request.data.get('service_package_id') or request.data.get('service_package')
+        if service_package_id is not None:
+            try:
+                package = ServicePackage.objects.get(id=service_package_id)
+                service_package_feature.service_package = package
+            except ServicePackage.DoesNotExist:
+                return Response({"detail": "Service package not found"}, status=status.HTTP_404_NOT_FOUND)
+                
+        service_package_feature.save()
+        return Response({
+            "id": service_package_feature.id,
+            "service_package_id": service_package_feature.service_package_id,
+            "name": service_package_feature.name,
+            "created_at": service_package_feature.created_at,
+            "updated_at": service_package_feature.updated_at
+        }, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        tags=['Dashboard - Service Packages'],
+        operation_description="Delete a service package feature.",
+        responses={200: openapi.Response("Service package feature deleted successfully")}
+    )
+    def delete(self, request, feature_id):
+        from appointments.models import ServicePackageFeature
+        try:
+            service_package_feature = ServicePackageFeature.objects.get(id=feature_id)
+        except ServicePackageFeature.DoesNotExist:
+            return Response({"detail": "Feature not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+        service_package_feature.delete()
+        return Response({"message": "Service package feature deleted successfully"}, status=status.HTTP_200_OK)
 
 
 
