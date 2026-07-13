@@ -1015,35 +1015,55 @@ class ClientProfileUpdateView(NewAPIView):
         data = request.data
         errors = {}
 
+        def get_valid_value(key, current_val, is_nullable=False):
+            if key not in data:
+                return current_val, False
+            val = data[key]
+            if isinstance(val, str):
+                val = val.strip()
+                if val.lower() in ('null', 'undefined'):
+                    val = ''
+            if val == '' or val is None:
+                if is_nullable:
+                    return None, current_val is not None
+                return current_val, False
+            
+            if isinstance(current_val, str) and not isinstance(val, str):
+                val_str = str(val)
+            else:
+                val_str = val
+            return val, val_str != current_val
+
         # ── User fields ───────────────────────────────────────────────────────
         user_dirty = False
 
-        if 'full_name' in data:
-            if not data['full_name'].strip():
-                errors['full_name'] = ["This field may not be blank."]
-            else:
-                user.full_name = data['full_name'].strip()
-                user_dirty = True
+        val, updated = get_valid_value('full_name', user.full_name)
+        if updated:
+            user.full_name = val
+            user_dirty = True
 
-        if 'phone_number' in data:
-            if not data['phone_number'].strip():
-                errors['phone_number'] = ["This field may not be blank."]
-            else:
-                user.phone_number = data['phone_number'].strip()
-                user_dirty = True
+        val, updated = get_valid_value('phone_number', user.phone_number)
+        if updated:
+            user.phone_number = val
+            user_dirty = True
 
-        if 'gender' in data:
+        val, updated = get_valid_value('gender', user.gender)
+        if updated:
             valid = [c[0] for c in models.User.GENDER_CHOICES]
-            if data['gender'] not in valid:
+            if val not in valid:
                 errors['gender'] = [f"Invalid choice. Valid options: {valid}"]
             else:
-                user.gender = data['gender']
+                user.gender = val
                 user_dirty = True
 
-        if 'dob' in data:
+        val, updated = get_valid_value('dob', user.dob)
+        if updated:
             import datetime
             try:
-                user.dob = datetime.date.fromisoformat(data['dob'])
+                if isinstance(val, (datetime.date, datetime.datetime)):
+                    user.dob = val
+                else:
+                    user.dob = datetime.date.fromisoformat(str(val))
                 user_dirty = True
             except ValueError:
                 errors['dob'] = ["Invalid date format. Use YYYY-MM-DD."]
@@ -1055,35 +1075,42 @@ class ClientProfileUpdateView(NewAPIView):
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # ── Validate choices first ───────────────────────────────────────────
-        if 'business_type' in data:
+        # ── Profile validation choices ─────────────────────────────────────────
+        profile_dirty = False
+
+        val_business_type, updated_business_type = get_valid_value('business_type', profile.business_type)
+        if updated_business_type:
             valid = [c[0] for c in models.Client.BUSINESS_TYPE_CHOICES]
-            if data['business_type'] not in valid:
+            if val_business_type not in valid:
                 errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
 
-        if 'preferred_job_type' in data:
+        val_pref_job, updated_pref_job = get_valid_value('preferred_job_type', profile.preferred_job_type)
+        if updated_pref_job:
             valid = [c[0] for c in models.Client.JOB_PREFERENCE_CHOICES]
-            if data['preferred_job_type'] not in valid:
+            if val_pref_job not in valid:
                 errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
 
-        if 'work_preference' in data:
+        val_work_pref, updated_work_pref = get_valid_value('work_preference', profile.work_preference)
+        if updated_work_pref:
             valid = [c[0] for c in models.Client.WORK_PREFERENCE_CHOICES]
-            if data['work_preference'] not in valid:
+            if val_work_pref not in valid:
                 errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
 
-        if 'no_of_employees' in data:
+        val_employees, updated_employees = get_valid_value('no_of_employees', profile.no_of_employees)
+        if updated_employees:
             try:
-                val = int(data['no_of_employees'])
-                if val < 0:
+                val_int = int(val_employees)
+                if val_int < 0:
                     errors['no_of_employees'] = ["Must be non-negative."]
             except (ValueError, TypeError):
                 errors['no_of_employees'] = ["Enter a valid integer."]
 
-        if 'hourly_pay_rate' in data:
+        val_rate, updated_rate = get_valid_value('hourly_pay_rate', profile.hourly_pay_rate)
+        if updated_rate:
             from decimal import Decimal, InvalidOperation
             try:
-                val = Decimal(str(data['hourly_pay_rate']))
-                if val < 0:
+                val_dec = Decimal(str(val_rate))
+                if val_dec < 0:
                     errors['hourly_pay_rate'] = ["Must be a positive value."]
             except InvalidOperation:
                 errors['hourly_pay_rate'] = ["Enter a valid decimal number."]
@@ -1091,7 +1118,7 @@ class ClientProfileUpdateView(NewAPIView):
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # ── Profile fields ────────────────────────────────────────────────────
+        # ── Profile fields update ─────────────────────────────────────────────
         from django.db import transaction
         from decimal import Decimal
 
@@ -1100,24 +1127,32 @@ class ClientProfileUpdateView(NewAPIView):
                 if user_dirty:
                     user.save()
 
-                profile_dirty = False
                 str_fields = [
-                    'business_name', 'business_type', 'business_address_street',
+                    'business_name', 'business_address_street',
                     'business_address_city', 'business_address_state', 'business_address_zip',
                     'contact_person_name', 'business_phone', 'business_license_number',
-                    'business_description', 'preferred_job_type', 'work_preference',
+                    'business_description',
                 ]
                 for field in str_fields:
-                    if field in data:
-                        setattr(profile, field, data[field].strip() if data[field] else '')
+                    val_str, updated_str = get_valid_value(field, getattr(profile, field))
+                    if updated_str:
+                        setattr(profile, field, val_str)
                         profile_dirty = True
 
-                if 'no_of_employees' in data:
-                    profile.no_of_employees = int(data['no_of_employees'])
+                if updated_business_type:
+                    profile.business_type = val_business_type
                     profile_dirty = True
-
-                if 'hourly_pay_rate' in data:
-                    profile.hourly_pay_rate = Decimal(str(data['hourly_pay_rate']))
+                if updated_pref_job:
+                    profile.preferred_job_type = val_pref_job
+                    profile_dirty = True
+                if updated_work_pref:
+                    profile.work_preference = val_work_pref
+                    profile_dirty = True
+                if updated_employees:
+                    profile.no_of_employees = int(val_employees)
+                    profile_dirty = True
+                if updated_rate:
+                    profile.hourly_pay_rate = Decimal(str(val_rate))
                     profile_dirty = True
 
                 if profile_dirty:
@@ -1127,27 +1162,32 @@ class ClientProfileUpdateView(NewAPIView):
                 if 'availabilities' in data:
                     raw = data['availabilities']
                     if isinstance(raw, str):
-                        import json as json_mod
-                        try:
-                            raw = json_mod.loads(raw)
-                        except json_mod.JSONDecodeError:
-                            return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
-                    if not isinstance(raw, list):
-                        return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
-                    profile.availabilities.all().delete()
-                    import datetime
-                    for slot in raw:
-                        try:
-                            models.ClientWeeklySchedule.objects.create(
-                                client=profile,
-                                day=slot['day'],
-                                date=datetime.date.fromisoformat(slot['date']),
-                                start_time=datetime.time.fromisoformat(slot['start_time']),
-                                end_time=datetime.time.fromisoformat(slot['end_time']),
-                                is_available=slot.get('is_available', True),
-                            )
-                        except (KeyError, ValueError) as e:
-                            raise ValueError(f"Invalid slot data: {e}")
+                        raw = raw.strip()
+                        if raw.lower() in ('null', 'undefined'):
+                            raw = ''
+                    if raw not in ('', None):
+                        if isinstance(raw, str):
+                            import json as json_mod
+                            try:
+                                raw = json_mod.loads(raw)
+                            except json_mod.JSONDecodeError:
+                                return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                        if not isinstance(raw, list):
+                            return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                        profile.availabilities.all().delete()
+                        import datetime
+                        for slot in raw:
+                            try:
+                                models.ClientWeeklySchedule.objects.create(
+                                    client=profile,
+                                    day=slot['day'],
+                                    date=datetime.date.fromisoformat(slot['date']),
+                                    start_time=datetime.time.fromisoformat(slot['start_time']),
+                                    end_time=datetime.time.fromisoformat(slot['end_time']),
+                                    is_available=slot.get('is_available', True),
+                                )
+                            except (KeyError, ValueError) as e:
+                                raise ValueError(f"Invalid slot data: {e}")
         except ValueError as e:
             return Response({'availabilities': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1447,6 +1487,7 @@ class ClientProfileView(NewAPIView):
                     "total_reviews":   total_reviews,
                     "gender":          user.gender,
                     "phone_number":    user.phone_number,
+                    "email":           user.email,
                     "member_since":    user.created_at.strftime("%B %Y"),
                 },
                 "stats": {

@@ -324,3 +324,76 @@ class PhlebotomistProfileUpdateTests(APITestCase):
         self.phleb_profile.refresh_from_db()
         self.assertIsNone(self.phleb_profile.address)
 
+
+class ClientProfileUpdateTests(APITestCase):
+
+    def setUp(self):
+        self.update_url = reverse('client-profile-update')
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="SecurePassword123!",
+            full_name="John Client",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Acme Health",
+            business_type="healthcare",
+            business_address_street="456 Elm St",
+            business_address_city="Brooklyn",
+            business_address_state="NY",
+            business_address_zip="11201",
+            contact_person_name="Jane Contact",
+            business_phone="0987654321",
+            business_license_number="BL-12345",
+            business_description="Test Description",
+            hourly_pay_rate=30.00,
+            preferred_job_type="in_clinic_phlebotomy",
+            work_preference="full_time",
+            no_of_employees=10
+        )
+        ClientWeeklySchedule.objects.create(
+            client=self.client_profile,
+            day="Monday",
+            date="2026-07-13",
+            start_time="08:00:00",
+            end_time="16:00:00",
+            is_available=True
+        )
+
+    def test_update_single_field_leaves_others_unchanged(self):
+        self.client.force_authenticate(user=self.client_user)
+        payload = {
+            "business_name": "Updated Acme Health"
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.client_profile.refresh_from_db()
+        self.assertEqual(self.client_profile.business_name, "Updated Acme Health")
+        self.assertEqual(self.client_profile.business_address_city, "Brooklyn")
+        self.assertEqual(self.client_profile.availabilities.count(), 1)
+
+    def test_update_optional_blank_ignored(self):
+        self.client.force_authenticate(user=self.client_user)
+        payload = {
+            "business_address_city": "Manhattan",
+            "business_name": "",
+            "business_type": "null",
+            "business_address_state": "undefined",
+            "availabilities": None
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.client_profile.refresh_from_db()
+        self.assertEqual(self.client_profile.business_address_city, "Manhattan")
+        self.assertEqual(self.client_profile.business_name, "Acme Health") # stayed the same
+        self.assertEqual(self.client_profile.business_type, "healthcare") # stayed the same
+        self.assertEqual(self.client_profile.business_address_state, "NY") # stayed the same
+        self.assertEqual(self.client_profile.availabilities.count(), 1) # stayed the same
+
+
