@@ -2673,6 +2673,8 @@ class ClientFindPhlebotomistAPIView(APIView):
         from authentication.models import User, PhlebotomistAvailability
         from authentication.serializers import UserSerializer
         from jobs.models import Job
+        from communication.models import Review
+        from django.db.models import Avg, Count
         import datetime
         from django.utils import timezone
         
@@ -2721,6 +2723,9 @@ class ClientFindPhlebotomistAPIView(APIView):
             user_data['specialty'] = profile.specialty
             user_data['service_area'] = profile.service_area
             user_data['availability_status'] = availability_status
+            rating_data = Review.objects.filter(reviewed=phleb_user, status=Review.APPROVED).aggregate(avg=Avg('rating'), total=Count('id'))
+            user_data['avg_rating'] = round(rating_data['avg'] or 0.0, 1)
+            user_data['total_review_count'] = rating_data['total']
 
             if job:
                 # Calculate match score
