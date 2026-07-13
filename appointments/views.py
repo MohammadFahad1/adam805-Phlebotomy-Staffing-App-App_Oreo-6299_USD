@@ -609,8 +609,13 @@ class StripeWebhookView(APIView):
         if event['type'] == 'checkout.session.completed':
             session = event['data']['object']
             metadata = getattr(session, 'metadata', {}) or {}
-            if not isinstance(metadata, dict):
-                metadata = dict(metadata)
+            if hasattr(metadata, 'to_dict'):
+                metadata = metadata.to_dict()
+            else:
+                try:
+                    metadata = dict(metadata)
+                except Exception:
+                    metadata = {}
             payment_type = metadata.get('type')
             payment_id = metadata.get('payment_id')
 
@@ -653,8 +658,13 @@ class PaymentSuccessView(APIView):
             try:
                 session = stripe.checkout.Session.retrieve(session_id)
                 metadata = getattr(session, 'metadata', {}) or {}
-                if not isinstance(metadata, dict):
-                    metadata = dict(metadata)
+                if hasattr(metadata, 'to_dict'):
+                    metadata = metadata.to_dict()
+                else:
+                    try:
+                        metadata = dict(metadata)
+                    except Exception:
+                        metadata = {}
                 payment_id = metadata.get('payment_id')
                 payment_type = metadata.get('type')
                 
