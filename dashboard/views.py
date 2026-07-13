@@ -1058,13 +1058,13 @@ class UserManagementEditView(NewAPIView):
                     except (ValueError, TypeError):
                         errors['years_of_experience'] = ["Enter a valid integer."]
 
-                if 'specialty' in data:
-                    valid = [c[0] for c in profile.SPECIALTY_CHOICES]
-                    if data['specialty'] not in valid:
-                        errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
-                    else:
-                        profile.specialty = data['specialty']
-                        profile_dirty = True
+                # if 'specialty' in data:
+                #     valid = [c[0] for c in profile.SPECIALTY_CHOICES]
+                #     if data['specialty'] not in valid:
+                #         errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
+                #     else:
+                #         profile.specialty = data['specialty']
+                #         profile_dirty = True
 
                 if 'work_preference' in data:
                     valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]

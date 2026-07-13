@@ -53,12 +53,12 @@ class Phlebotomist(models.Model):
     IV_INSERTION_OR_THERAPY = 'iv_insertion_or_therapy'
     ONCOLOGY_OR_CHEMOTHERAPY = 'oncology_or_chemotherapy'
     MEDICAL_NURSE = 'medical_nurse'
-    SPECIALTY_CHOICES = [
-        (GENERAL_PHLEBOTOMY, 'General Phlebotomy'),
-        (IV_INSERTION_OR_THERAPY, 'IV Insertion/Therapy'),
-        (ONCOLOGY_OR_CHEMOTHERAPY, 'Oncology/Chemotherapy'),
-        (MEDICAL_NURSE, 'Medical Nurse'),
-    ]
+    # SPECIALTY_CHOICES = [
+    #     (GENERAL_PHLEBOTOMY, 'General Phlebotomy'),
+    #     (IV_INSERTION_OR_THERAPY, 'IV Insertion/Therapy'),
+    #     (ONCOLOGY_OR_CHEMOTHERAPY, 'Oncology/Chemotherapy'),
+    #     (MEDICAL_NURSE, 'Medical Nurse'),
+    # ]
     
     PART_TIME = 'part_time'
     FULL_TIME = 'full_time'
@@ -70,7 +70,7 @@ class Phlebotomist(models.Model):
     license_number = models.CharField(max_length=100)
     license_expiry_date = models.DateField()
     years_of_experience = models.PositiveIntegerField(default=0)
-    specialty = models.CharField(choices=SPECIALTY_CHOICES, max_length=100)
+    specialty = models.CharField(max_length=100)
     work_preference = models.CharField(choices=WORK_PREFERENCE_CHOICES, max_length=100)
     service_area = models.CharField(max_length=255)
     address = models.CharField(max_length=255, blank=True, null=True)
