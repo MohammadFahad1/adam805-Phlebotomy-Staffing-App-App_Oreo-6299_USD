@@ -699,7 +699,8 @@ class PhlebotomistProfileUpdateView(NewAPIView):
 
         ### Example Request:
         ```json
-        {
+        {Allows authenticated phlebotomists to update their own profile information.
+
             "full_name": "Jane Doe",
             "phone_number": "1234567890",
             "years_of_experience": 5,
@@ -1310,6 +1311,7 @@ class PhlebotomistProfileView(NewAPIView):
                     "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
                     "overall_rating":  overall_rating,
                     "total_reviews":   total_reviews,
+                    "phone_number":    user.phone_number,
                     "gender":          user.gender,
                 },
                 "stats": {
