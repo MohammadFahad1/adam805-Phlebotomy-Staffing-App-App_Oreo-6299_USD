@@ -2593,6 +2593,12 @@ class ClientAppointmentDetailAPIView(APIView):
         prescription_name = os.path.basename(appointment.prescription.name) if appointment.prescription else None
         prescription_url = request.build_absolute_uri(appointment.prescription.url) if appointment.prescription else None
         prescription_uploaded_at = format_uploaded_time(appointment.updated_at) if appointment.prescription else None
+        prescription_file_type = ""
+        if appointment.prescription and appointment.prescription.name:
+            _, ext = os.path.splitext(appointment.prescription.name)
+            prescription_file_type = ext.lower().replace('.', '')
+            if not prescription_file_type:
+                prescription_file_type = "file"
 
         response_data = {
             "id": appointment.id,
@@ -2619,6 +2625,7 @@ class ClientAppointmentDetailAPIView(APIView):
             "medical_information": {
                 "prescription_name": prescription_name,
                 "prescription_url": prescription_url,
+                "file_type": prescription_file_type,
                 "uploaded_at_formatted": prescription_uploaded_at,
                 "special_instructions": appointment.special_requests,
                 "known_allergies": appointment.known_allergies,
