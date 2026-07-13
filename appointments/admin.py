@@ -60,6 +60,7 @@ class AppointmentAdmin(admin.ModelAdmin):
         'appointment_date', 
         'start_time', 
         'location_type', 
+        'client',
         'status'
     )
     list_filter = ('status', 'location_type', 'appointment_date', 'medical_conditions', 'created_at')
