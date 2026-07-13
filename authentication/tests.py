@@ -163,6 +163,40 @@ class PhlebotomistRegistrationTests(APITestCase):
         self.assertEqual(doc.document_name, "license")
         self.assertTrue(doc.document_file.name.startswith("phlebotomist_documents/resume"))
 
+    def test_phlebotomist_registration_duplicate_availabilities_fail(self):
+        doc_file = SimpleUploadedFile("resume.pdf", b"pdf content", content_type="application/pdf")
+        payload = {
+            "full_name": "Jane Duplicate",
+            "email": "janeduplicate@example.com",
+            "password": "SecurePassword123!",
+            "phone_number": "1234567890",
+            "gender": "female",
+            "dob": "1994-08-20",
+            "license_number": "PHL-88291",
+            "license_expiry_date": "2029-05-10",
+            "years_of_experience": 4,
+            "specialty": "general_phlebotomy",
+            "work_preference": "part_time",
+            "service_area": "Los Angeles",
+            "address": "456 Oak Ave, Los Angeles, CA",
+            "availabilities[0]day": "Monday",
+            "availabilities[0]date": "2026-07-13",
+            "availabilities[0]start_time": "08:00:00",
+            "availabilities[0]end_time": "16:00:00",
+            "availabilities[0]is_available": True,
+            "availabilities[1]day": "Monday",
+            "availabilities[1]date": "2026-07-13",
+            "availabilities[1]start_time": "08:00:00",
+            "availabilities[1]end_time": "16:00:00",
+            "availabilities[1]is_available": True,
+            "skills[0]": "Pediatric Draw",
+            "documents[0]document_name": "license",
+            "documents[0]document_file": doc_file
+        }
+        response = self.client.post(self.register_url, data=payload, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("availabilities", response.data)
+
 
 class ClientRegistrationTests(APITestCase):
     def setUp(self):
@@ -238,6 +272,53 @@ class ClientRegistrationTests(APITestCase):
         doc = profile.documents.first()
         self.assertEqual(doc.document_name, "license")
         self.assertTrue(doc.document_file.name.startswith("client_documents/business_license"))
+
+    def test_client_registration_duplicate_availabilities_fail(self):
+        from PIL import Image
+        from io import BytesIO
+        doc_file = SimpleUploadedFile("business_license.pdf", b"pdf content", content_type="application/pdf")
+        image_io = BytesIO()
+        Image.new('RGB', (1, 1), 'white').save(image_io, 'PNG')
+        image_io.seek(0)
+        signature_file = SimpleUploadedFile("signature.png", image_io.read(), content_type="image/png")
+        payload = {
+            "full_name": "John Duplicate",
+            "email": "johnduplicate@example.com",
+            "password": "SecurePassword123!",
+            "phone_number": "9876543210",
+            "gender": "male",
+            "dob": "1985-06-15",
+            "business_name": "Smith Healthcare LLC",
+            "business_type": "healthcare",
+            "business_address_street": "123 Main Street",
+            "business_address_city": "New York",
+            "business_address_state": "NY",
+            "business_address_zip": "10001",
+            "contact_person_name": "John Duplicate",
+            "business_phone": "2125550100",
+            "business_license_number": "BL-987654",
+            "business_description": "A private healthcare clinic offering routine blood draws.",
+            "hourly_pay_rate": "30.00",
+            "preferred_job_type": "in_clinic_phlebotomy",
+            "work_preference": "full_time",
+            "no_of_employees": 10,
+            "signature": signature_file,
+            "availabilities[0]day": "Monday",
+            "availabilities[0]date": "2026-07-13",
+            "availabilities[0]start_time": "08:00:00",
+            "availabilities[0]end_time": "16:00:00",
+            "availabilities[0]is_available": True,
+            "availabilities[1]day": "Monday",
+            "availabilities[1]date": "2026-07-13",
+            "availabilities[1]start_time": "08:00:00",
+            "availabilities[1]end_time": "16:00:00",
+            "availabilities[1]is_available": True,
+            "documents[0]document_name": "license",
+            "documents[0]document_file": doc_file
+        }
+        response = self.client.post(self.register_url, data=payload, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("availabilities", response.data)
 
 
 class PhlebotomistProfileUpdateTests(APITestCase):
@@ -324,6 +405,30 @@ class PhlebotomistProfileUpdateTests(APITestCase):
         self.phleb_profile.refresh_from_db()
         self.assertIsNone(self.phleb_profile.address)
 
+    def test_phlebotomist_profile_update_duplicate_availabilities_fail(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        payload = {
+            "availabilities": [
+                {
+                    "day": "Monday",
+                    "date": "2026-07-13",
+                    "start_time": "08:00:00",
+                    "end_time": "16:00:00",
+                    "is_available": True
+                },
+                {
+                    "day": "Monday",
+                    "date": "2026-07-13",
+                    "start_time": "08:00:00",
+                    "end_time": "16:00:00",
+                    "is_available": True
+                }
+            ]
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("availabilities", response.data)
+
 
 class ClientProfileUpdateTests(APITestCase):
 
@@ -395,5 +500,29 @@ class ClientProfileUpdateTests(APITestCase):
         self.assertEqual(self.client_profile.business_type, "healthcare") # stayed the same
         self.assertEqual(self.client_profile.business_address_state, "NY") # stayed the same
         self.assertEqual(self.client_profile.availabilities.count(), 1) # stayed the same
+
+    def test_client_profile_update_duplicate_availabilities_fail(self):
+        self.client.force_authenticate(user=self.client_user)
+        payload = {
+            "availabilities": [
+                {
+                    "day": "Monday",
+                    "date": "2026-07-13",
+                    "start_time": "08:00:00",
+                    "end_time": "16:00:00",
+                    "is_available": True
+                },
+                {
+                    "day": "Monday",
+                    "date": "2026-07-13",
+                    "start_time": "08:00:00",
+                    "end_time": "16:00:00",
+                    "is_available": True
+                }
+            ]
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("availabilities", response.data)
 
 

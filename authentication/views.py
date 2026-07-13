@@ -176,7 +176,26 @@ class PhlebotomistRegistrationView(NewAPIView):
         # 5. Run standard serializer validation and save
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        from django.db import IntegrityError
+        try:
+            serializer.save()
+        except IntegrityError as e:
+            err_msg = str(e)
+            if "phlebotomistavailability" in err_msg or "phlebotomist_availability" in err_msg:
+                return Response(
+                    {"availabilities": ["An availability slot with the same date, start time, and end time already exists."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            elif "user.email" in err_msg or "auth_user.email" in err_msg or "unique constraint" in err_msg.lower():
+                return Response(
+                    {"email": ["A user with this email already exists."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {"detail": f"Database integrity error: {err_msg}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # 6. Return registration success message indicating admin review
         return Response(
@@ -355,7 +374,26 @@ class ClientRegistrationView(NewAPIView):
         # 6. Run standard serializer validation and save
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        from django.db import IntegrityError
+        try:
+            serializer.save()
+        except IntegrityError as e:
+            err_msg = str(e)
+            if "clientweeklyschedule" in err_msg or "client_weekly_schedule" in err_msg:
+                return Response(
+                    {"availabilities": ["An availability slot with the same date, start time, and end time already exists."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            elif "user.email" in err_msg or "auth_user.email" in err_msg or "unique constraint" in err_msg.lower():
+                return Response(
+                    {"email": ["A user with this email already exists."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {"detail": f"Database integrity error: {err_msg}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # 7. Return registration success message indicating admin review
         return Response(
@@ -899,8 +937,21 @@ class PhlebotomistProfileUpdateView(NewAPIView):
                                 return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
                         if not isinstance(raw, list):
                             return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                        seen = set()
+                        for slot in raw:
+                            if not isinstance(slot, dict):
+                                return Response({'availabilities': ["Each slot must be an object."]}, status=status.HTTP_400_BAD_REQUEST)
+                            if not all(k in slot for k in ('day', 'date', 'start_time', 'end_time')):
+                                return Response({'availabilities': ["Each slot must contain 'day', 'date', 'start_time', and 'end_time'."]}, status=status.HTTP_400_BAD_REQUEST)
+                            key = (str(slot['date']), str(slot['start_time']), str(slot['end_time']))
+                            if key in seen:
+                                return Response({'availabilities': ["Duplicate availability slots are not allowed."]}, status=status.HTTP_400_BAD_REQUEST)
+                            seen.add(key)
+
                         profile.availabilities.all().delete()
                         import datetime
+                        from django.db import IntegrityError
                         for slot in raw:
                             try:
                                 models.PhlebotomistAvailability.objects.create(
@@ -911,6 +962,8 @@ class PhlebotomistProfileUpdateView(NewAPIView):
                                     end_time=datetime.time.fromisoformat(slot['end_time']),
                                     is_available=slot.get('is_available', True),
                                 )
+                            except IntegrityError:
+                                raise ValueError("Duplicate availability slots are not allowed.")
                             except (KeyError, ValueError) as e:
                                 raise ValueError(f"Invalid slot data: {e}")
         except ValueError as e:
@@ -1179,8 +1232,21 @@ class ClientProfileUpdateView(NewAPIView):
                                 return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
                         if not isinstance(raw, list):
                             return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                        seen = set()
+                        for slot in raw:
+                            if not isinstance(slot, dict):
+                                return Response({'availabilities': ["Each slot must be an object."]}, status=status.HTTP_400_BAD_REQUEST)
+                            if not all(k in slot for k in ('day', 'date', 'start_time', 'end_time')):
+                                return Response({'availabilities': ["Each slot must contain 'day', 'date', 'start_time', and 'end_time'."]}, status=status.HTTP_400_BAD_REQUEST)
+                            key = (str(slot['date']), str(slot['start_time']), str(slot['end_time']))
+                            if key in seen:
+                                return Response({'availabilities': ["Duplicate availability slots are not allowed."]}, status=status.HTTP_400_BAD_REQUEST)
+                            seen.add(key)
+
                         profile.availabilities.all().delete()
                         import datetime
+                        from django.db import IntegrityError
                         for slot in raw:
                             try:
                                 models.ClientWeeklySchedule.objects.create(
@@ -1191,6 +1257,8 @@ class ClientProfileUpdateView(NewAPIView):
                                     end_time=datetime.time.fromisoformat(slot['end_time']),
                                     is_available=slot.get('is_available', True),
                                 )
+                            except IntegrityError:
+                                raise ValueError("Duplicate availability slots are not allowed.")
                             except (KeyError, ValueError) as e:
                                 raise ValueError(f"Invalid slot data: {e}")
         except ValueError as e:

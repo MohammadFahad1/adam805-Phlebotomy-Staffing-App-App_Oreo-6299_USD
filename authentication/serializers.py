@@ -147,6 +147,18 @@ class PhlebotomistRegistrationSerializer(serializers.Serializer):
     def validate_availabilities(self, value):
         if not value or len(value) == 0:
             raise serializers.ValidationError("At least one availability slot is required.")
+        seen = set()
+        for slot in value:
+            date_val = slot.get('date')
+            start_val = slot.get('start_time')
+            end_val = slot.get('end_time')
+            date_str = date_val.isoformat() if hasattr(date_val, 'isoformat') else str(date_val)
+            start_str = start_val.isoformat() if hasattr(start_val, 'isoformat') else str(start_val)
+            end_str = end_val.isoformat() if hasattr(end_val, 'isoformat') else str(end_val)
+            key = (date_str, start_str, end_str)
+            if key in seen:
+                raise serializers.ValidationError("Duplicate availability slots are not allowed.")
+            seen.add(key)
         return value
 
     def validate_skills(self, value):
@@ -284,6 +296,18 @@ class ClientRegistrationSerializer(serializers.Serializer):
     def validate_availabilities(self, value):
         if not value or len(value) == 0:
             raise serializers.ValidationError("At least one availability slot is required.")
+        seen = set()
+        for slot in value:
+            date_val = slot.get('date')
+            start_val = slot.get('start_time')
+            end_val = slot.get('end_time')
+            date_str = date_val.isoformat() if hasattr(date_val, 'isoformat') else str(date_val)
+            start_str = start_val.isoformat() if hasattr(start_val, 'isoformat') else str(start_val)
+            end_str = end_val.isoformat() if hasattr(end_val, 'isoformat') else str(end_val)
+            key = (date_str, start_str, end_str)
+            if key in seen:
+                raise serializers.ValidationError("Duplicate availability slots are not allowed.")
+            seen.add(key)
         return value
 
     def validate_documents(self, value):
