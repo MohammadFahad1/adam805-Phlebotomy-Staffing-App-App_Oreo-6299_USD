@@ -78,7 +78,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Core Assignment & Lifecycle', {
-            'fields': ('status', 'patient', 'service_package')
+            'fields': ('status', 'patient', 'client', 'service_package')
         }),
         ('Schedule & Logistics', {
             'fields': ('appointment_date', ('start_time', 'end_time'), ('location_type', 'location'))
