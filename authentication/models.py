@@ -129,31 +129,31 @@ class Phlebotomist_document(models.Model):
 
 # Client models Start Here
 class Client(models.Model):
-    HEALTHCARE = 'healthcare'
-    INDIVIDUAL = 'individual'
-    BUSINESS_TYPE_CHOICES = [
-        (HEALTHCARE, 'Healthcare'),
-        (INDIVIDUAL, 'Individual'),
-    ]
+    # HEALTHCARE = 'healthcare'
+    # INDIVIDUAL = 'individual'
+    # BUSINESS_TYPE_CHOICES = [
+    #     (HEALTHCARE, 'Healthcare'),
+    #     (INDIVIDUAL, 'Individual'),
+    # ]
     
-    IN_CLINIC_PHLEBOTOMY = 'in_clinic_phlebotomy'
-    MOBILE_BLOOD_DRAW = 'mobile_blood_draw'
-    LABORATORY_TESTING = 'laboratory_testing'
-    JOB_PREFERENCE_CHOICES = [
-        (IN_CLINIC_PHLEBOTOMY, 'In-Clinic Phlebotomy'),
-        (MOBILE_BLOOD_DRAW, 'Mobile Blood Draw'),
-        (LABORATORY_TESTING, 'Laboratory Testing'),
-    ]
+    # IN_CLINIC_PHLEBOTOMY = 'in_clinic_phlebotomy'
+    # MOBILE_BLOOD_DRAW = 'mobile_blood_draw'
+    # LABORATORY_TESTING = 'laboratory_testing'
+    # JOB_PREFERENCE_CHOICES = [
+    #     (IN_CLINIC_PHLEBOTOMY, 'In-Clinic Phlebotomy'),
+    #     (MOBILE_BLOOD_DRAW, 'Mobile Blood Draw'),
+    #     (LABORATORY_TESTING, 'Laboratory Testing'),
+    # ]
     
-    PART_TIME = 'part_time'
-    FULL_TIME = 'full_time'
-    WORK_PREFERENCE_CHOICES = [
-        (PART_TIME, 'Part-time'),
-        (FULL_TIME, 'Full-time'),
-    ]
+    # PART_TIME = 'part_time'
+    # FULL_TIME = 'full_time'
+    # WORK_PREFERENCE_CHOICES = [
+    #     (PART_TIME, 'Part-time'),
+    #     (FULL_TIME, 'Full-time'),
+    # ]
     client = models.OneToOneField(User, on_delete=models.CASCADE, related_name='client_profile')
     business_name = models.CharField(max_length=255)
-    business_type = models.CharField(max_length=255, choices=BUSINESS_TYPE_CHOICES)
+    business_type = models.CharField(max_length=255)
     business_address_street = models.CharField(max_length=255)
     business_address_city = models.CharField(max_length=255)
     business_address_state = models.CharField(max_length=255)
@@ -163,8 +163,8 @@ class Client(models.Model):
     business_license_number = models.CharField(max_length=100)
     business_description = models.TextField()
     hourly_pay_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    preferred_job_type = models.CharField(max_length=100, choices=JOB_PREFERENCE_CHOICES)
-    work_preference = models.CharField(max_length=100, choices=WORK_PREFERENCE_CHOICES)
+    preferred_job_type = models.CharField(max_length=100)
+    work_preference = models.CharField(max_length=100)
     no_of_employees = models.PositiveIntegerField(default=0)
     signature = models.ImageField(upload_to='client_signatures/', null=True, blank=True)
     is_approved = models.BooleanField(default=None, blank=True, null=True)

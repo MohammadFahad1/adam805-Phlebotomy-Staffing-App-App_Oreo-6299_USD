@@ -1142,25 +1142,30 @@ class UserManagementEditView(NewAPIView):
                             profile_dirty = True
 
                 if 'business_type' in data:
-                    valid = [c[0] for c in profile.BUSINESS_TYPE_CHOICES]
-                    if data['business_type'] not in valid:
-                        errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
+                    # valid = [c[0] for c in profile.BUSINESS_TYPE_CHOICES]
+                    # if data['business_type'] not in valid:
+                    if not data['business_type'] or len(data['business_type'].strip()) == 0:
+                        errors['business_type'] = ["This field is required."]
                     else:
                         profile.business_type = data['business_type']
                         profile_dirty = True
 
                 if 'preferred_job_type' in data:
-                    valid = [c[0] for c in profile.JOB_PREFERENCE_CHOICES]
-                    if data['preferred_job_type'] not in valid:
-                        errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+                    # valid = [c[0] for c in profile.JOB_PREFERENCE_CHOICES]
+                    # if data['preferred_job_type'] not in valid:
+                    #     errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+                    if not data['preferred_job_type'] or len(data['preferred_job_type'].strip()) == 0:
+                        errors['preferred_job_type'] = ["This field is required."]
                     else:
                         profile.preferred_job_type = data['preferred_job_type']
                         profile_dirty = True
 
                 if 'work_preference' in data:
-                    valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
-                    if data['work_preference'] not in valid:
-                        errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+                    # valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
+                    # if data['work_preference'] not in valid:  
+                    #     errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+                    if not data['work_preference'] or len(data['work_preference'].strip()) == 0:
+                        errors['work_preference'] = ["This field is required."]
                     else:
                         profile.work_preference = data['work_preference']
                         profile_dirty = True

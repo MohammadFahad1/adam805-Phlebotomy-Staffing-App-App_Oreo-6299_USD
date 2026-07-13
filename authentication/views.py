@@ -824,13 +824,13 @@ class PhlebotomistProfileUpdateView(NewAPIView):
                 errors['years_of_experience'] = ["Enter a valid integer."]
 
         val, updated = get_valid_value('specialty', profile.specialty)
-        if updated:
-            valid = [c[0] for c in models.Phlebotomist.SPECIALTY_CHOICES]
-            if val not in valid:
-                errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
-            else:
-                profile.specialty = val
-                profile_dirty = True
+        # if updated:
+        #     valid = [c[0] for c in models.Phlebotomist.SPECIALTY_CHOICES]
+        #     if val not in valid:
+        #         errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
+        #     else:
+        #         profile.specialty = val
+        #         profile_dirty = True
 
         val, updated = get_valid_value('work_preference', profile.work_preference)
         if updated:
@@ -1080,22 +1080,27 @@ class ClientProfileUpdateView(NewAPIView):
 
         val_business_type, updated_business_type = get_valid_value('business_type', profile.business_type)
         if updated_business_type:
-            valid = [c[0] for c in models.Client.BUSINESS_TYPE_CHOICES]
-            if val_business_type not in valid:
-                errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
+            # valid = [c[0] for c in models.Client.BUSINESS_TYPE_CHOICES]
+            # if val_business_type not in valid:
+            #     errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
+            if not val_business_type or len(val_business_type.strip()) == 0:
+                errors['business_type'] = ["This field is required."]
 
         val_pref_job, updated_pref_job = get_valid_value('preferred_job_type', profile.preferred_job_type)
         if updated_pref_job:
-            valid = [c[0] for c in models.Client.JOB_PREFERENCE_CHOICES]
-            if val_pref_job not in valid:
-                errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+            # valid = [c[0] for c in models.Client.JOB_PREFERENCE_CHOICES]
+            # if val_pref_job not in valid:
+            #     errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+            if not val_pref_job or len(val_pref_job.strip()) == 0:
+                errors['preferred_job_type'] = ["This field is required."]
 
         val_work_pref, updated_work_pref = get_valid_value('work_preference', profile.work_preference)
         if updated_work_pref:
-            valid = [c[0] for c in models.Client.WORK_PREFERENCE_CHOICES]
-            if val_work_pref not in valid:
-                errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
-
+            # valid = [c[0] for c in models.Client.WORK_PREFERENCE_CHOICES]
+            # if val_work_pref not in valid:
+            if not val_work_pref or len(val_work_pref.strip()) == 0:
+                errors['work_preference'] = ["This field is required."]
+    
         val_employees, updated_employees = get_valid_value('no_of_employees', profile.no_of_employees)
         if updated_employees:
             try:

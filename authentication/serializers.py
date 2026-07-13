@@ -241,7 +241,8 @@ class ClientRegistrationSerializer(serializers.Serializer):
 
     # Client profile fields
     business_name = serializers.CharField(required=True, allow_blank=False)
-    business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=True)
+    # business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=True)
+    business_type = serializers.CharField(required=True, allow_blank=False)
     business_address_street = serializers.CharField(required=True, allow_blank=False)
     business_address_city = serializers.CharField(required=True, allow_blank=False)
     business_address_state = serializers.CharField(required=True, allow_blank=False)
@@ -251,8 +252,10 @@ class ClientRegistrationSerializer(serializers.Serializer):
     business_license_number = serializers.CharField(required=True, allow_blank=False)
     business_description = serializers.CharField(required=True, allow_blank=False, style={'base_template': 'textarea.html'})
     hourly_pay_rate = serializers.DecimalField(required=True, max_digits=10, decimal_places=2)
-    preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=True)
-    work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=True)
+    # preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=True)
+    # work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=True)
+    preferred_job_type = serializers.CharField(required=True, allow_blank=False)
+    work_preference = serializers.CharField(required=True, allow_blank=False)
     no_of_employees = serializers.IntegerField(min_value=0, required=False, default=0)
     signature = serializers.ImageField(required=True, allow_null=False)
 
@@ -437,7 +440,8 @@ class ClientProfileUpdateSerializer(serializers.Serializer):
     
     # Profile fields
     business_name = serializers.CharField(required=False)
-    business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=False)
+    # business_type = serializers.ChoiceField(choices=models.Client.BUSINESS_TYPE_CHOICES, required=False)
+    business_type = serializers.CharField(required=False, allow_blank=False)
     business_address_street = serializers.CharField(required=False)
     business_address_city = serializers.CharField(required=False)
     business_address_state = serializers.CharField(required=False)
@@ -447,8 +451,10 @@ class ClientProfileUpdateSerializer(serializers.Serializer):
     business_license_number = serializers.CharField(required=False)
     business_description = serializers.CharField(required=False, style={'base_template': 'textarea.html'})
     hourly_pay_rate = serializers.DecimalField(required=False, max_digits=10, decimal_places=2)
-    preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=False)
-    work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=False)
+    # preferred_job_type = serializers.ChoiceField(choices=models.Client.JOB_PREFERENCE_CHOICES, required=False)
+    # work_preference = serializers.ChoiceField(choices=models.Client.WORK_PREFERENCE_CHOICES, required=False)
+    preferred_job_type = serializers.CharField(required=True, allow_blank=False)
+    work_preference = serializers.CharField(required=True, allow_blank=False)
     no_of_employees = serializers.IntegerField(required=False, min_value=0)
     
     # Nested — full replace
