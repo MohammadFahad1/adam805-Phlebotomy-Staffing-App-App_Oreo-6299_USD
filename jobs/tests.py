@@ -1931,6 +1931,94 @@ class PhlebotomistClientListToReportAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class InvitePhlebotomistToTheJobTests(APITestCase):
+
+    def setUp(self):
+        self.client_user = User.objects.create_user(
+            email="client_invite_test@example.com",
+            password="SecurePassword123!",
+            full_name="Client User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1980-01-01",
+            role=User.CLIENT,
+            is_active=True
+        )
+        # Create client profile to pass IsApprovedClient
+        from authentication.models import Client
+        Client.objects.create(
+            client=self.client_user,
+            business_name="Test Business",
+            business_type=Client.HEALTHCARE,
+            business_address_street="123 Main St",
+            business_address_city="New York",
+            business_address_state="NY",
+            business_address_zip="10001",
+            contact_person_name="Contact Person",
+            business_phone="1234567890",
+            business_license_number="LIC123",
+            business_description="Test Business Description",
+            hourly_pay_rate=30.00,
+            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
+            work_preference=Client.FULL_TIME,
+            is_approved=True
+        )
+
+        self.phleb_user = User.objects.create_user(
+            email="phleb_invite_test@example.com",
+            password="SecurePassword123!",
+            full_name="Phlebotomist User",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST,
+            is_active=True
+        )
+
+        from jobs.models import Job
+        import datetime
+        self.job = Job.objects.create(
+            id="JB-25-100001",
+            client=self.client_user,
+            title="Blood Draw Test",
+            description="Regular blood draw service.",
+            location="123 Main Street, New York",
+            city="New York",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(9, 0),
+            shift_end=datetime.time(17, 0),
+            shift_duration=8,
+            pay_type="hourly",
+            pay_rate=30.00,
+            status=Job.APPROVED,
+            job_type=Job.URGENT
+        )
+
+        self.invite_url = reverse('invite-phlebotomist-to-job', kwargs={'user_id': self.phleb_user.id})
+
+    def test_invite_phlebotomist_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(self.invite_url, data={'job_id': self.job.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("Successfully invited", response.data['message'])
+
+        # Verify JobAssignment is created in PENDING status
+        from jobs.models import JobAssignment, JobApplication
+        assignment = JobAssignment.objects.filter(job=self.job).first()
+        self.assertIsNotNone(assignment)
+        self.assertEqual(assignment.status, JobAssignment.PENDING)
+        self.assertEqual(assignment.phlebotomist, self.phleb_user)
+
+        # Verify JobApplication is ACCEPTED
+        app = JobApplication.objects.filter(job=self.job, phlebotomist=self.phleb_user).first()
+        self.assertIsNotNone(app)
+        self.assertEqual(app.status, JobApplication.ACCEPTED)
+
+    def test_invite_phlebotomist_unauthorized(self):
+        response = self.client.post(self.invite_url, data={'job_id': self.job.id}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 
 
 

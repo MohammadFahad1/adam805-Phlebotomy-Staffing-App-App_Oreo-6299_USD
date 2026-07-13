@@ -557,6 +557,85 @@ class JobTemplateDetailView(NewAPIView):
             "data": data
         })
 
+class InvitePhlebotomistToTheJob(APIView):
+    permission_classes = [IsApprovedClient]
+
+    @swagger_auto_schema(
+        tags=['App (Client) - Job Details'],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=['job_id'],
+            properties={
+                'job_id': openapi.Schema(type=openapi.TYPE_STRING, description='ID of the job to invite the phlebotomist to')
+            }
+        ),
+        responses={201: 'Invited successfully', 400: 'Bad Request'}
+    )
+    def post(self, request, user_id):
+        from django.shortcuts import get_object_or_404
+        from django.core.mail import send_mail
+        from django.conf import settings
+        from jobs.models import Job, JobAssignment, JobApplication
+        from rest_framework import status
+        
+        job_id = request.data.get('job_id')
+        if not job_id:
+            return Response({"detail": "job_id is required in request body."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        job = get_object_or_404(Job, id=job_id)
+        
+        # Verify ownership
+        if job.client != request.user:
+            return Response({"detail": "You do not own this job."}, status=status.HTTP_403_FORBIDDEN)
+            
+        phleb_user = get_object_or_404(User, id=user_id, role=User.PHLEBOTOMIST)
+        
+        # Check if active assignment exists
+        existing_assignment = JobAssignment.objects.filter(job=job).first()
+        if existing_assignment and existing_assignment.status == JobAssignment.ACTIVE:
+            return Response({"detail": "This job already has an active assignment."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Create or update assignment
+        if existing_assignment:
+            existing_assignment.phlebotomist = phleb_user
+            existing_assignment.client = job.client
+            existing_assignment.status = JobAssignment.PENDING
+            existing_assignment.save()
+            assignment = existing_assignment
+        else:
+            assignment = JobAssignment.objects.create(
+                job=job,
+                phlebotomist=phleb_user,
+                client=job.client,
+                status=JobAssignment.PENDING
+            )
+            
+        # Create or update application as ACCEPTED
+        JobApplication.objects.update_or_create(
+            job=job,
+            phlebotomist=phleb_user,
+            defaults={'status': JobApplication.ACCEPTED}
+        )
+        
+        # Notify phlebotomist
+        try:
+            job_details_url = f"{settings.BASE_URL}/phlebotomist/jobs/{job.id}/" if hasattr(settings, 'BASE_URL') else f"http://localhost:8001/phlebotomist/jobs/{job.id}/"
+            send_mail(
+                f"Job Invitation: {job.title}",
+                f"Hi {phleb_user.full_name or 'Phlebotomist'},\n\nYou have been invited to a new job: {job.title}.\n\nView details: {job_details_url}",
+                settings.DEFAULT_FROM_EMAIL,
+                [phleb_user.email],
+                fail_silently=True
+            )
+        except Exception as email_exc:
+            pass
+            
+        return Response({
+            "message": f"Successfully invited {phleb_user.full_name} to job {job.id}.",
+            "job_id": job.id,
+            "phlebotomist_id": phleb_user.id,
+            "assignment_id": assignment.id
+        }, status=status.HTTP_201_CREATED)
 
 # Phlebotomist Endpoints
 class PhlebotomistAvailableJobsAPIView(NewAPIView):
@@ -2190,6 +2269,7 @@ class PhlebotomistClientListToReportAPIView(APIView):
             },
             "message": "Phlebotomist client list for reporting retrieved successfully."
         }, status=status.HTTP_200_OK)
+
 
 # Client Endpoints
 class ClientHomeAPIView(APIView):

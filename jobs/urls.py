@@ -21,6 +21,7 @@ urlpatterns = [
     path('client/appointments/pending/', views.ClientPendingAppointmentsAPIView.as_view(), name='client-pending-appointments'),
     path('client/appointments/<int:pk>/', views.ClientAppointmentDetailAPIView.as_view(), name='client-appointment-detail'),
     path('client/phlebotomists/find/', views.ClientFindPhlebotomistAPIView.as_view(), name='client-find-phlebotomist'),
+    path('client/phlebotomists/<int:user_id>/invite/', views.InvitePhlebotomistToTheJob.as_view(), name='invite-phlebotomist-to-job'),
     
     # Common Endpoints
     path('report-user/', views.ReportUserAPIView.as_view(), name='report-user'),
