@@ -3412,7 +3412,6 @@ class AdminPayrollAPIView(APIView):
             "transactions": transactions_list
         }, status=status.HTTP_200_OK)
 
-
 class AdminPayrollDetailAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
@@ -3695,7 +3694,6 @@ class AdminTermsAndConditionsView(APIView):
     )
     def post(self, request):
         return self.put(request)
-
 
 class PublicTermsAndConditionsView(APIView):
     permission_classes = [AllowAny]

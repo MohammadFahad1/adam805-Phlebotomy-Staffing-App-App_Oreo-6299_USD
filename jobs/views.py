@@ -3711,8 +3711,8 @@ class PhlebotomistJobHistoryAPIView(APIView):
             filtered_items.append(item)
 
         response = AutoPaginatedResponse(filtered_items, request=request)
-        response.data["total_earnings"] = f"${total_earnings:,.2f}"
-        response.data["this_month_earnings"] = f"${month_earnings:,.2f}"
+        response.data["total_earnings"] = f"{total_earnings:,.2f}"
+        response.data["this_month_earnings"] = f"{month_earnings:,.2f}"
         response.data["jobs_completed_count"] = total_completed
         return response
 
