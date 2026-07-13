@@ -587,6 +587,9 @@ class InvitePhlebotomistToTheJob(APIView):
         # Verify ownership
         if job.client != request.user:
             return Response({"detail": "You do not own this job."}, status=status.HTTP_403_FORBIDDEN)
+        
+        if job.status == Job.DRAFT or job.status == Job.PENDING_APPROVAL or job.status == Job.PENDING_PAYMENT:
+            return Response({"detail": "Please wait for the approval of your job before assigning a phlebotomist."})
             
         phleb_user = get_object_or_404(User, id=user_id, role=User.PHLEBOTOMIST)
         
