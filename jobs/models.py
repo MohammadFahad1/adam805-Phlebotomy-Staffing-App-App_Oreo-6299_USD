@@ -5,6 +5,7 @@ class Job(models.Model):
     DRAFT = 'draft'
     PENDING_APPROVAL = 'pending_approval'
     PENDING_PAYMENT = 'pending_payment'
+    PAID = 'paid'
     APPROVED = 'approved'
     OPEN = 'open'
     IN_PROGRESS = 'in_progress'
@@ -14,6 +15,7 @@ class Job(models.Model):
         (DRAFT, 'Draft'),
         (PENDING_APPROVAL, 'Pending Approval'),
         (PENDING_PAYMENT, 'Pending Payment'),
+        (PAID, 'Paid'),
         (APPROVED, 'Approved'),
         (OPEN, 'Open'),
         (IN_PROGRESS, 'In Progress'),

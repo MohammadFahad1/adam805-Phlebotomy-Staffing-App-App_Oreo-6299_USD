@@ -636,7 +636,7 @@ class StripeWebhookView(APIView):
                 try:
                     from jobs.models import Job
                     job = Job.objects.get(id=job_id)
-                    job.status = Job.APPROVED
+                    job.status = Job.PAID
                     job.save()
                 except Job.DoesNotExist:
                     pass
