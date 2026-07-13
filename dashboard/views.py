@@ -949,19 +949,12 @@ class UserManagementEditView(NewAPIView):
         errors = {}
 
         # ── Resolve profile ───────────────────────────────────────────────────
-        try:
-            profile = user.phlebotomist_profile
-            is_phlebotomist = True
-        except Exception:
-            try:
-                profile = user.client_profile
-                is_phlebotomist = False
-            except Exception:
-                profile = None
-                is_phlebotomist = False
+        is_phlebotomist = (user.role == User.PHLEBOTOMIST)
+        profile = getattr(user, 'phlebotomist_profile', None) if is_phlebotomist else getattr(user, 'client_profile', None)
 
-        # ── Validate & apply User fields ──────────────────────────────────────
+        # ── Validate User fields ──────────────────────────────────────────────
         user_dirty = False
+        profile_dirty = False
 
         if 'full_name' in data:
             val = data['full_name'].strip()
@@ -1008,205 +1001,262 @@ class UserManagementEditView(NewAPIView):
             user.profile_picture = request.FILES['profile_picture']
             user_dirty = True
 
-        if errors:
-            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        # ── Validate profile fields ───────────────────────────────────────────
+        skills_to_update = None
+        availabilities_to_update = None
 
-        if user_dirty:
-            user.save()
-
-        # ── Validate & apply profile fields ───────────────────────────────────
-        if profile is None:
-            return Response(
-                {"message": "Profile updated successfully." if user_dirty else "No changes provided."},
-                status=status.HTTP_200_OK
-            )
-
-        profile_dirty = False
-
-        if is_phlebotomist:
-            # -- Phlebotomist direct fields
-            str_fields = ['license_number', 'service_area', 'address']
-            for field in str_fields:
-                if field in data:
-                    val = data[field].strip() if data[field] else None
-                    setattr(profile, field, val)
-                    profile_dirty = True
-
-            if 'license_expiry_date' in data:
-                try:
-                    profile.license_expiry_date = datetime.date.fromisoformat(data['license_expiry_date'])
-                    profile_dirty = True
-                except ValueError:
-                    errors['license_expiry_date'] = ["Invalid date format. Use YYYY-MM-DD."]
-
-            if 'years_of_experience' in data:
-                try:
-                    val = int(data['years_of_experience'])
-                    if val < 0:
-                        errors['years_of_experience'] = ["Must be a non-negative integer."]
+        if profile is not None:
+            if is_phlebotomist:
+                # -- Phlebotomist fields validation
+                if 'license_number' in data:
+                    val = data['license_number'].strip()
+                    if not val:
+                        errors['license_number'] = ["This field may not be blank."]
                     else:
-                        profile.years_of_experience = val
+                        profile.license_number = val
                         profile_dirty = True
-                except (ValueError, TypeError):
-                    errors['years_of_experience'] = ["Enter a valid integer."]
 
-            if 'specialty' in data:
-                valid = [c[0] for c in profile.SPECIALTY_CHOICES]
-                if data['specialty'] not in valid:
-                    errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
-                else:
-                    profile.specialty = data['specialty']
+                if 'service_area' in data:
+                    val = data['service_area'].strip()
+                    if not val:
+                        errors['service_area'] = ["This field may not be blank."]
+                    else:
+                        profile.service_area = val
+                        profile_dirty = True
+
+                if 'address' in data:
+                    val = data['address'].strip() if data['address'] else None
+                    profile.address = val
                     profile_dirty = True
 
-            if 'work_preference' in data:
-                valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
-                if data['work_preference'] not in valid:
-                    errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
-                else:
-                    profile.work_preference = data['work_preference']
-                    profile_dirty = True
+                if 'license_expiry_date' in data:
+                    try:
+                        profile.license_expiry_date = datetime.date.fromisoformat(data['license_expiry_date'])
+                        profile_dirty = True
+                    except ValueError:
+                        errors['license_expiry_date'] = ["Invalid date format. Use YYYY-MM-DD."]
 
-            if errors:
-                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+                if 'years_of_experience' in data:
+                    try:
+                        val = int(data['years_of_experience'])
+                        if val < 0:
+                            errors['years_of_experience'] = ["Must be a non-negative integer."]
+                        else:
+                            profile.years_of_experience = val
+                            profile_dirty = True
+                    except (ValueError, TypeError):
+                        errors['years_of_experience'] = ["Enter a valid integer."]
 
-            from django.db import transaction
-            with transaction.atomic():
-                if profile_dirty:
-                    profile.save()
+                if 'specialty' in data:
+                    valid = [c[0] for c in profile.SPECIALTY_CHOICES]
+                    if data['specialty'] not in valid:
+                        errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
+                    else:
+                        profile.specialty = data['specialty']
+                        profile_dirty = True
 
-                # -- Skills: full replace
+                if 'work_preference' in data:
+                    valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
+                    if data['work_preference'] not in valid:
+                        errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+                    else:
+                        profile.work_preference = data['work_preference']
+                        profile_dirty = True
+
+                # skills validation
                 if 'skills' in data:
                     raw = data['skills']
                     if isinstance(raw, str):
                         try:
                             raw = json.loads(raw)
                         except json.JSONDecodeError:
-                            return Response({'skills': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
-                    if not isinstance(raw, list):
-                        return Response({'skills': ["Must be a list of skill names."]}, status=status.HTTP_400_BAD_REQUEST)
-                    profile.skills.all().delete()
-                    for skill_name in raw:
-                        if skill_name:
-                            Phlebotomist_skill.objects.get_or_create(phlebotomist=profile, skill_name=skill_name.strip())
+                            errors['skills'] = ["Invalid JSON format."]
+                            raw = None
+                    if raw is not None:
+                        if not isinstance(raw, list):
+                            errors['skills'] = ["Must be a list of skill names."]
+                        else:
+                            skills_to_update = [s.strip() for s in raw if s and isinstance(s, str)]
 
-                # -- Availabilities: full replace
+                # availabilities validation
                 if 'availabilities' in data:
                     raw = data['availabilities']
                     if isinstance(raw, str):
                         try:
                             raw = json.loads(raw)
                         except json.JSONDecodeError:
-                            return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
-                    if not isinstance(raw, list):
-                        return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
-                    profile.availabilities.all().delete()
-                    for slot in raw:
-                        try:
-                            PhlebotomistAvailability.objects.create(
-                                phlebotomist=profile,
-                                day=slot['day'],
-                                date=datetime.date.fromisoformat(slot['date']),
-                                start_time=datetime.time.fromisoformat(slot['start_time']),
-                                end_time=datetime.time.fromisoformat(slot['end_time']),
-                                is_available=slot.get('is_available', True),
-                            )
-                        except (KeyError, ValueError) as e:
-                            raise ValueError(f"Invalid slot data: {e}")
+                            errors['availabilities'] = ["Invalid JSON format."]
+                            raw = None
+                    if raw is not None:
+                        if not isinstance(raw, list):
+                            errors['availabilities'] = ["Must be a list."]
+                        else:
+                            availabilities_to_update = []
+                            for idx, slot in enumerate(raw):
+                                slot_errors = []
+                                for req_field in ['day', 'date', 'start_time', 'end_time']:
+                                    if req_field not in slot:
+                                        slot_errors.append(f"Missing '{req_field}' field.")
+                                if not slot_errors:
+                                    try:
+                                        d = datetime.date.fromisoformat(slot['date'])
+                                        st = datetime.time.fromisoformat(slot['start_time'])
+                                        et = datetime.time.fromisoformat(slot['end_time'])
+                                        availabilities_to_update.append({
+                                            'day': slot['day'],
+                                            'date': d,
+                                            'start_time': st,
+                                            'end_time': et,
+                                            'is_available': slot.get('is_available', True)
+                                        })
+                                    except ValueError as e:
+                                        slot_errors.append(f"Invalid date/time format: {e}")
+                                if slot_errors:
+                                    errors[f'availabilities_{idx}'] = slot_errors
 
-        else:
-            # -- Validate choices FIRST before touching the model
-            if 'business_type' in data:
-                valid = [c[0] for c in profile.BUSINESS_TYPE_CHOICES]
-                if data['business_type'] not in valid:
-                    errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
-
-            if 'preferred_job_type' in data:
-                valid = [c[0] for c in profile.JOB_PREFERENCE_CHOICES]
-                if data['preferred_job_type'] not in valid:
-                    errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
-
-            if 'work_preference' in data:
-                valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
-                if data['work_preference'] not in valid:
-                    errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
-
-            if 'no_of_employees' in data:
-                try:
-                    val = int(data['no_of_employees'])
-                    if val < 0:
-                        errors['no_of_employees'] = ["Must be a non-negative integer."]
-                except (ValueError, TypeError):
-                    errors['no_of_employees'] = ["Enter a valid integer."]
-
-            if 'hourly_pay_rate' in data:
-                try:
-                    val = Decimal(str(data['hourly_pay_rate']))
-                    if val < 0:
-                        errors['hourly_pay_rate'] = ["Must be a positive value."]
-                except InvalidOperation:
-                    errors['hourly_pay_rate'] = ["Enter a valid decimal number."]
-
-            if 'availabilities' in data:
-                raw = data['availabilities']
-                if isinstance(raw, str):
-                    try:
-                        raw = json.loads(raw)
-                    except json.JSONDecodeError:
-                        errors['availabilities'] = ["Invalid JSON format."]
-                if not isinstance(raw, list) and 'availabilities' not in errors:
-                    errors['availabilities'] = ["Must be a list."]
-
-            if errors:
-                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-
-            # -- All validation passed — apply changes atomically
-            from django.db import transaction
-            with transaction.atomic():
-                # String / choice fields
+            else:
+                # -- Client fields validation
                 str_fields = [
-                    'business_name', 'business_type', 'business_address_street',
-                    'business_address_city', 'business_address_state', 'business_address_zip',
-                    'contact_person_name', 'business_phone', 'business_license_number',
-                    'business_description', 'preferred_job_type', 'work_preference',
+                    'business_name', 'business_address_street', 'business_address_city',
+                    'business_address_state', 'business_address_zip', 'contact_person_name',
+                    'business_phone', 'business_license_number', 'business_description'
                 ]
                 for field in str_fields:
                     if field in data:
-                        setattr(profile, field, data[field].strip() if data[field] else '')
+                        val = data[field].strip() if data[field] else ''
+                        if not val:
+                            errors[field] = ["This field may not be blank."]
+                        else:
+                            setattr(profile, field, val)
+                            profile_dirty = True
+
+                if 'business_type' in data:
+                    valid = [c[0] for c in profile.BUSINESS_TYPE_CHOICES]
+                    if data['business_type'] not in valid:
+                        errors['business_type'] = [f"Invalid choice. Valid options: {valid}"]
+                    else:
+                        profile.business_type = data['business_type']
+                        profile_dirty = True
+
+                if 'preferred_job_type' in data:
+                    valid = [c[0] for c in profile.JOB_PREFERENCE_CHOICES]
+                    if data['preferred_job_type'] not in valid:
+                        errors['preferred_job_type'] = [f"Invalid choice. Valid options: {valid}"]
+                    else:
+                        profile.preferred_job_type = data['preferred_job_type']
+                        profile_dirty = True
+
+                if 'work_preference' in data:
+                    valid = [c[0] for c in profile.WORK_PREFERENCE_CHOICES]
+                    if data['work_preference'] not in valid:
+                        errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
+                    else:
+                        profile.work_preference = data['work_preference']
                         profile_dirty = True
 
                 if 'no_of_employees' in data:
-                    profile.no_of_employees = int(data['no_of_employees'])
-                    profile_dirty = True
+                    try:
+                        val = int(data['no_of_employees'])
+                        if val < 0:
+                            errors['no_of_employees'] = ["Must be a non-negative integer."]
+                        else:
+                            profile.no_of_employees = val
+                            profile_dirty = True
+                    except (ValueError, TypeError):
+                        errors['no_of_employees'] = ["Enter a valid integer."]
 
                 if 'hourly_pay_rate' in data:
-                    profile.hourly_pay_rate = Decimal(str(data['hourly_pay_rate']))
-                    profile_dirty = True
+                    try:
+                        val = Decimal(str(data['hourly_pay_rate']))
+                        if val < 0:
+                            errors['hourly_pay_rate'] = ["Must be a positive value."]
+                        else:
+                            profile.hourly_pay_rate = val
+                            profile_dirty = True
+                    except InvalidOperation:
+                        errors['hourly_pay_rate'] = ["Enter a valid decimal number."]
 
                 if 'signature' in request.FILES:
                     profile.signature = request.FILES['signature']
                     profile_dirty = True
 
-                if profile_dirty:
-                    profile.save()
-
-                # -- Availabilities: full replace
+                # client availabilities validation
                 if 'availabilities' in data:
                     raw = data['availabilities']
                     if isinstance(raw, str):
-                        raw = json.loads(raw)
-                    profile.availabilities.all().delete()
-                    for slot in raw:
                         try:
+                            raw = json.loads(raw)
+                        except json.JSONDecodeError:
+                            errors['availabilities'] = ["Invalid JSON format."]
+                            raw = None
+                    if raw is not None:
+                        if not isinstance(raw, list):
+                            errors['availabilities'] = ["Must be a list."]
+                        else:
+                            availabilities_to_update = []
+                            for idx, slot in enumerate(raw):
+                                slot_errors = []
+                                for req_field in ['day', 'date', 'start_time', 'end_time']:
+                                    if req_field not in slot:
+                                        slot_errors.append(f"Missing '{req_field}' field.")
+                                if not slot_errors:
+                                    try:
+                                        d = datetime.date.fromisoformat(slot['date'])
+                                        st = datetime.time.fromisoformat(slot['start_time'])
+                                        et = datetime.time.fromisoformat(slot['end_time'])
+                                        availabilities_to_update.append({
+                                            'day': slot['day'],
+                                            'date': d,
+                                            'start_time': st,
+                                            'end_time': et,
+                                            'is_available': slot.get('is_available', True)
+                                        })
+                                    except ValueError as e:
+                                        slot_errors.append(f"Invalid date/time format: {e}")
+                                if slot_errors:
+                                    errors[f'availabilities_{idx}'] = slot_errors
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Apply updates atomically ──────────────────────────────────────────
+        from django.db import transaction
+        with transaction.atomic():
+            if user_dirty:
+                user.save()
+            if profile is not None:
+                if profile_dirty:
+                    profile.save()
+
+                if is_phlebotomist:
+                    if skills_to_update is not None:
+                        profile.skills.all().delete()
+                        for skill_name in skills_to_update:
+                            Phlebotomist_skill.objects.get_or_create(phlebotomist=profile, skill_name=skill_name)
+
+                    if availabilities_to_update is not None:
+                        profile.availabilities.all().delete()
+                        for slot in availabilities_to_update:
+                            PhlebotomistAvailability.objects.create(
+                                phlebotomist=profile,
+                                day=slot['day'],
+                                date=slot['date'],
+                                start_time=slot['start_time'],
+                                end_time=slot['end_time'],
+                                is_available=slot['is_available']
+                            )
+                else:
+                    if availabilities_to_update is not None:
+                        profile.availabilities.all().delete()
+                        for slot in availabilities_to_update:
                             ClientWeeklySchedule.objects.create(
                                 client=profile,
                                 day=slot['day'],
-                                date=datetime.date.fromisoformat(slot['date']),
-                                start_time=datetime.time.fromisoformat(slot['start_time']),
-                                end_time=datetime.time.fromisoformat(slot['end_time']),
-                                is_available=slot.get('is_available', True),
+                                date=slot['date'],
+                                start_time=slot['start_time'],
+                                end_time=slot['end_time'],
+                                is_available=slot['is_available']
                             )
-                        except (KeyError, ValueError) as e:
-                            raise ValueError(f"Invalid slot data: {e}")
 
         return Response({"message": "Profile updated successfully."}, status=status.HTTP_200_OK)
 

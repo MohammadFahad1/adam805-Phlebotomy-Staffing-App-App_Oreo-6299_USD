@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 import datetime
 from jobs.models import Job, JobAssignment
+from authentication.models import Client, Phlebotomist
 
 User = get_user_model()
 
@@ -659,6 +660,133 @@ class ReviewsModerationAPITests(APITestCase):
         self.client.force_authenticate(user=self.phleb_user)
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserManagementEditAPITests(APITestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.phleb_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+        # Create Phlebotomist profile
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="PHL-123456",
+            license_expiry_date="2027-12-31",
+            years_of_experience=5,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Brooklyn",
+            address="123 Street"
+        )
+        
+        self.client_user = User.objects.create_user(
+            email="client@example.com",
+            password="clientpassword",
+            full_name="Client User",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        # Create Client profile
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Original Clinic",
+            business_type="healthcare",
+            business_address_street="456 Avenue",
+            business_address_city="NY",
+            business_address_state="NY",
+            business_address_zip="10001",
+            contact_person_name="Jane Client",
+            business_phone="9876543210",
+            business_license_number="BL-123",
+            business_description="Clinic",
+            hourly_pay_rate=35.00,
+            preferred_job_type="in_clinic_phlebotomy",
+            work_preference="full_time",
+            no_of_employees=10
+        )
+
+    def test_edit_phlebotomist_profile_success(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('user-management-edit', kwargs={'user_id': self.phleb_user.id})
+        payload = {
+            "full_name": "Updated John Phleb",
+            "email": "updated_phleb@example.com",
+            "license_number": "PHL-654321",
+            "years_of_experience": 8,
+            "skills": ["venipuncture", "capillary_puncture"],
+            "availabilities": [
+                {
+                    "day": "Monday",
+                    "date": "2025-09-01",
+                    "start_time": "09:00",
+                    "end_time": "17:00",
+                    "is_available": True
+                }
+            ]
+        }
+        response = self.client.patch(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.phleb_user.refresh_from_db()
+        self.assertEqual(self.phleb_user.full_name, "Updated John Phleb")
+        self.assertEqual(self.phleb_user.email, "updated_phleb@example.com")
+        
+        self.phleb_profile.refresh_from_db()
+        self.assertEqual(self.phleb_profile.license_number, "PHL-654321")
+        self.assertEqual(self.phleb_profile.years_of_experience, 8)
+        self.assertEqual(self.phleb_profile.skills.count(), 2)
+        self.assertEqual(self.phleb_profile.availabilities.count(), 1)
+
+    def test_edit_client_profile_success(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('user-management-edit', kwargs={'user_id': self.client_user.id})
+        payload = {
+            "full_name": "Updated Client User",
+            "business_name": "Updated Clinic LLC",
+            "hourly_pay_rate": "45.50",
+            "no_of_employees": 15,
+            "availabilities": [
+                {
+                    "day": "Wednesday",
+                    "date": "2025-09-03",
+                    "start_time": "08:00",
+                    "end_time": "16:00",
+                    "is_available": True
+                }
+            ]
+        }
+        response = self.client.patch(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.client_user.refresh_from_db()
+        self.assertEqual(self.client_user.full_name, "Updated Client User")
+        
+        self.client_profile.refresh_from_db()
+        self.assertEqual(self.client_profile.business_name, "Updated Clinic LLC")
+        self.assertEqual(float(self.client_profile.hourly_pay_rate), 45.50)
+        self.assertEqual(self.client_profile.no_of_employees, 15)
+        self.assertEqual(self.client_profile.availabilities.count(), 1)
+
 
 
 
