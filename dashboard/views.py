@@ -475,7 +475,18 @@ class SuspendUserAccount(APIView):
         ```
         """
         user = get_object_or_404(User, id=user_id)
-        user.suspended = True if user.suspended == False else False
+        if request.user.id == user.id:
+            return Response({"detail": "You cannot suspend or unsuspend your own account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = request.data or {}
+        if 'suspended' in data:
+            val = data['suspended']
+            if isinstance(val, str):
+                val = val.lower() == 'true'
+            user.suspended = bool(val)
+        else:
+            user.suspended = not user.suspended
+
         user.save()
         return Response({"detail": f"User account {'suspended' if user.suspended else 'unsuspended'} successfully."}, status=status.HTTP_200_OK)
 

@@ -234,8 +234,93 @@ class ClientRegistrationTests(APITestCase):
         schedule = profile.availabilities.first()
         self.assertEqual(schedule.day, "Monday")
         
-        # Check documents
         self.assertEqual(profile.documents.count(), 1)
         doc = profile.documents.first()
         self.assertEqual(doc.document_name, "license")
         self.assertTrue(doc.document_file.name.startswith("client_documents/business_license"))
+
+
+class PhlebotomistProfileUpdateTests(APITestCase):
+
+    def setUp(self):
+        self.update_url = reverse('phlebotomist-profile-update')
+        self.phleb_user = User.objects.create_user(
+            email="phleb@example.com",
+            password="SecurePassword123!",
+            full_name="John Doe",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="PHL-123456",
+            license_expiry_date="2027-12-31",
+            years_of_experience=5,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Brooklyn",
+            address="123 Street"
+        )
+        # Create some skills and availabilities initially
+        Phlebotomist_skill.objects.create(phlebotomist=self.phleb_profile, skill_name="Venipuncture")
+        PhlebotomistAvailability.objects.create(
+            phlebotomist=self.phleb_profile,
+            day="Monday",
+            date="2026-07-13",
+            start_time="08:00:00",
+            end_time="16:00:00",
+            is_available=True
+        )
+
+    def test_update_single_field_leaves_others_unchanged(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        payload = {
+            "full_name": "Updated John Doe"
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.phleb_user.refresh_from_db()
+        self.assertEqual(self.phleb_user.full_name, "Updated John Doe")
+        # Ensure other fields are completely untouched
+        self.assertEqual(self.phleb_user.phone_number, "1234567890")
+        self.phleb_profile.refresh_from_db()
+        self.assertEqual(self.phleb_profile.license_number, "PHL-123456")
+        self.assertEqual(self.phleb_profile.skills.count(), 1)
+        self.assertEqual(self.phleb_profile.availabilities.count(), 1)
+
+    def test_update_optional_blank_ignored(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        payload = {
+            "phone_number": "9876543210",
+            "license_number": "",
+            "dob": "null",
+            "years_of_experience": "undefined",
+            "skills": "",
+            "availabilities": None
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.phleb_user.refresh_from_db()
+        self.assertEqual(self.phleb_user.phone_number, "9876543210")
+        self.assertEqual(str(self.phleb_user.dob), "1990-01-01") # stayed the same
+        
+        self.phleb_profile.refresh_from_db()
+        self.assertEqual(self.phleb_profile.license_number, "PHL-123456") # stayed the same
+        self.assertEqual(self.phleb_profile.years_of_experience, 5) # stayed the same
+        self.assertEqual(self.phleb_profile.skills.count(), 1) # stayed the same
+        self.assertEqual(self.phleb_profile.availabilities.count(), 1) # stayed the same
+
+    def test_nullable_address_can_be_cleared(self):
+        self.client.force_authenticate(user=self.phleb_user)
+        payload = {
+            "address": ""
+        }
+        response = self.client.patch(self.update_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.phleb_profile.refresh_from_db()
+        self.assertIsNone(self.phleb_profile.address)
+

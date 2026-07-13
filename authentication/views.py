@@ -730,35 +730,55 @@ class PhlebotomistProfileUpdateView(NewAPIView):
         data = request.data
         errors = {}
 
+        def get_valid_value(key, current_val, is_nullable=False):
+            if key not in data:
+                return current_val, False
+            val = data[key]
+            if isinstance(val, str):
+                val = val.strip()
+                if val.lower() in ('null', 'undefined'):
+                    val = ''
+            if val == '' or val is None:
+                if is_nullable:
+                    return None, current_val is not None
+                return current_val, False
+            
+            if isinstance(current_val, str) and not isinstance(val, str):
+                val_str = str(val)
+            else:
+                val_str = val
+            return val, val_str != current_val
+
         # ── User fields ───────────────────────────────────────────────────────
         user_dirty = False
 
-        if 'full_name' in data:
-            if not data['full_name'].strip():
-                errors['full_name'] = ["This field may not be blank."]
-            else:
-                user.full_name = data['full_name'].strip()
-                user_dirty = True
+        val, updated = get_valid_value('full_name', user.full_name)
+        if updated:
+            user.full_name = val
+            user_dirty = True
 
-        if 'phone_number' in data:
-            if not data['phone_number'].strip():
-                errors['phone_number'] = ["This field may not be blank."]
-            else:
-                user.phone_number = data['phone_number'].strip()
-                user_dirty = True
+        val, updated = get_valid_value('phone_number', user.phone_number)
+        if updated:
+            user.phone_number = val
+            user_dirty = True
 
-        if 'gender' in data:
+        val, updated = get_valid_value('gender', user.gender)
+        if updated:
             valid = [c[0] for c in models.User.GENDER_CHOICES]
-            if data['gender'] not in valid:
+            if val not in valid:
                 errors['gender'] = [f"Invalid choice. Valid options: {valid}"]
             else:
-                user.gender = data['gender']
+                user.gender = val
                 user_dirty = True
 
-        if 'dob' in data:
+        val, updated = get_valid_value('dob', user.dob)
+        if updated:
             import datetime
             try:
-                user.dob = datetime.date.fromisoformat(data['dob'])
+                if isinstance(val, (datetime.date, datetime.datetime)):
+                    user.dob = val
+                else:
+                    user.dob = datetime.date.fromisoformat(str(val))
                 user_dirty = True
             except ValueError:
                 errors['dob'] = ["Invalid date format. Use YYYY-MM-DD."]
@@ -773,51 +793,61 @@ class PhlebotomistProfileUpdateView(NewAPIView):
         # ── Profile fields ────────────────────────────────────────────────────
         profile_dirty = False
 
-        if 'license_number' in data:
-            profile.license_number = data['license_number'].strip()
+        val, updated = get_valid_value('license_number', profile.license_number)
+        if updated:
+            profile.license_number = val
             profile_dirty = True
 
-        if 'license_expiry_date' in data:
+        val, updated = get_valid_value('license_expiry_date', profile.license_expiry_date)
+        if updated:
             import datetime
             try:
-                profile.license_expiry_date = datetime.date.fromisoformat(data['license_expiry_date'])
+                if isinstance(val, (datetime.date, datetime.datetime)):
+                    profile.license_expiry_date = val
+                else:
+                    profile.license_expiry_date = datetime.date.fromisoformat(str(val))
                 profile_dirty = True
             except ValueError:
                 errors['license_expiry_date'] = ["Invalid date format. Use YYYY-MM-DD."]
 
-        if 'years_of_experience' in data:
+        val, updated = get_valid_value('years_of_experience', profile.years_of_experience)
+        if updated:
             try:
-                val = int(data['years_of_experience'])
-                if val < 0:
+                val_int = int(val)
+                if val_int < 0:
                     errors['years_of_experience'] = ["Must be non-negative."]
                 else:
-                    profile.years_of_experience = val
+                    profile.years_of_experience = val_int
                     profile_dirty = True
             except (ValueError, TypeError):
                 errors['years_of_experience'] = ["Enter a valid integer."]
 
-        if 'specialty' in data:
+        val, updated = get_valid_value('specialty', profile.specialty)
+        if updated:
             valid = [c[0] for c in models.Phlebotomist.SPECIALTY_CHOICES]
-            if data['specialty'] not in valid:
+            if val not in valid:
                 errors['specialty'] = [f"Invalid choice. Valid options: {valid}"]
             else:
-                profile.specialty = data['specialty']
+                profile.specialty = val
                 profile_dirty = True
 
-        if 'work_preference' in data:
+        val, updated = get_valid_value('work_preference', profile.work_preference)
+        if updated:
             valid = [c[0] for c in models.Phlebotomist.WORK_PREFERENCE_CHOICES]
-            if data['work_preference'] not in valid:
+            if val not in valid:
                 errors['work_preference'] = [f"Invalid choice. Valid options: {valid}"]
             else:
-                profile.work_preference = data['work_preference']
+                profile.work_preference = val
                 profile_dirty = True
 
-        if 'service_area' in data:
-            profile.service_area = data['service_area'].strip()
+        val, updated = get_valid_value('service_area', profile.service_area)
+        if updated:
+            profile.service_area = val
             profile_dirty = True
 
-        if 'address' in data:
-            profile.address = data['address'].strip() if data['address'] else None
+        val, updated = get_valid_value('address', profile.address, is_nullable=True)
+        if updated:
+            profile.address = val
             profile_dirty = True
 
         if errors:
@@ -835,43 +865,53 @@ class PhlebotomistProfileUpdateView(NewAPIView):
                 if 'skills' in data:
                     raw = data['skills']
                     if isinstance(raw, str):
-                        import json as json_mod
-                        try:
-                            raw = json_mod.loads(raw)
-                        except json_mod.JSONDecodeError:
-                            return Response({'skills': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
-                    if not isinstance(raw, list):
-                        return Response({'skills': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
-                    profile.skills.all().delete()
-                    for skill_name in raw:
-                        if skill_name:
-                            models.Phlebotomist_skill.objects.get_or_create(phlebotomist=profile, skill_name=skill_name.strip())
+                        raw = raw.strip()
+                        if raw.lower() in ('null', 'undefined'):
+                            raw = ''
+                    if raw not in ('', None):
+                        if isinstance(raw, str):
+                            import json as json_mod
+                            try:
+                                raw = json_mod.loads(raw)
+                            except json_mod.JSONDecodeError:
+                                return Response({'skills': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                        if not isinstance(raw, list):
+                            return Response({'skills': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                        profile.skills.all().delete()
+                        for skill_name in raw:
+                            if skill_name:
+                                models.Phlebotomist_skill.objects.get_or_create(phlebotomist=profile, skill_name=skill_name.strip())
 
                 # ── Availabilities: full replace ──────────────────────────────
                 if 'availabilities' in data:
                     raw = data['availabilities']
                     if isinstance(raw, str):
-                        import json as json_mod
-                        try:
-                            raw = json_mod.loads(raw)
-                        except json_mod.JSONDecodeError:
-                            return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
-                    if not isinstance(raw, list):
-                        return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
-                    profile.availabilities.all().delete()
-                    import datetime
-                    for slot in raw:
-                        try:
-                            models.PhlebotomistAvailability.objects.create(
-                                phlebotomist=profile,
-                                day=slot['day'],
-                                date=datetime.date.fromisoformat(slot['date']),
-                                start_time=datetime.time.fromisoformat(slot['start_time']),
-                                end_time=datetime.time.fromisoformat(slot['end_time']),
-                                is_available=slot.get('is_available', True),
-                            )
-                        except (KeyError, ValueError) as e:
-                            raise ValueError(f"Invalid slot data: {e}")
+                        raw = raw.strip()
+                        if raw.lower() in ('null', 'undefined'):
+                            raw = ''
+                    if raw not in ('', None):
+                        if isinstance(raw, str):
+                            import json as json_mod
+                            try:
+                                raw = json_mod.loads(raw)
+                            except json_mod.JSONDecodeError:
+                                return Response({'availabilities': ["Invalid JSON format."]}, status=status.HTTP_400_BAD_REQUEST)
+                        if not isinstance(raw, list):
+                            return Response({'availabilities': ["Must be a list."]}, status=status.HTTP_400_BAD_REQUEST)
+                        profile.availabilities.all().delete()
+                        import datetime
+                        for slot in raw:
+                            try:
+                                models.PhlebotomistAvailability.objects.create(
+                                    phlebotomist=profile,
+                                    day=slot['day'],
+                                    date=datetime.date.fromisoformat(slot['date']),
+                                    start_time=datetime.time.fromisoformat(slot['start_time']),
+                                    end_time=datetime.time.fromisoformat(slot['end_time']),
+                                    is_available=slot.get('is_available', True),
+                                )
+                            except (KeyError, ValueError) as e:
+                                raise ValueError(f"Invalid slot data: {e}")
         except ValueError as e:
             return Response({'availabilities': [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
 

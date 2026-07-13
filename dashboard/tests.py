@@ -788,6 +788,79 @@ class UserManagementEditAPITests(APITestCase):
         self.assertEqual(self.client_profile.availabilities.count(), 1)
 
 
+class SuspendUserAccountAPITests(APITestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            email="admin@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.target_user = User.objects.create_user(
+            email="target@example.com",
+            password="targetpassword",
+            full_name="Target User",
+            phone_number="1234567891",
+            gender="male",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+
+    def test_suspend_unsuspend_toggle(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('suspend-unsuspend', kwargs={'user_id': self.target_user.id})
+        
+        # Initial suspend
+        response = self.client.patch(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.suspended)
+        
+        # Unsuspend toggle
+        response = self.client.patch(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.suspended)
+
+    def test_suspend_unsuspend_explicit(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('suspend-unsuspend', kwargs={'user_id': self.target_user.id})
+        
+        # Explicit suspend
+        response = self.client.patch(url, {'suspended': True}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.suspended)
+        
+        # Sending explicit suspend = True again should stay True
+        response = self.client.patch(url, {'suspended': True}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.suspended)
+        
+        # Explicit unsuspend
+        response = self.client.patch(url, {'suspended': False}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.suspended)
+
+    def test_self_suspension_prevented(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('suspend-unsuspend', kwargs={'user_id': self.admin_user.id})
+        
+        response = self.client.patch(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin_user.refresh_from_db()
+        self.assertFalse(self.admin_user.suspended)
+
+
+
 
 
 
