@@ -453,10 +453,10 @@ class PendingDocumentsAPIView(NewAPIView):
 
 class SuspendUserAccount(APIView):
     permission_classes = [IsAdminUser]
-    http_method_names = ['patch']
+    http_method_names = ['post']
     
     @swagger_auto_schema(tags=["Dashboard - Dashboard Page"])
-    def patch(self, request, user_id):
+    def post(self, request, user_id):
         """
         **Suspend User Account - Admin Only**\n
         Suspend or unsuspend a specific user account - Admin Only\n
