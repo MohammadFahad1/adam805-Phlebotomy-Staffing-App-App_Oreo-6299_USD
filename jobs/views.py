@@ -2611,6 +2611,7 @@ class ClientAppointmentDetailAPIView(APIView):
             "service_details": {
                 "id": service.id if service else None,
                 "name": service.name if service else "",
+                "price": service.price if service else "",
                 "description": features_desc,
                 "estimated_duration": estimated_duration,
                 "features": features_list
