@@ -317,6 +317,16 @@ class JobListForClient(NewAPIView):
             prof_type_display = job.get_professional_type_display() if hasattr(job, 'get_professional_type_display') else job.professional_type
             job_type_display = job.get_job_type_display() if hasattr(job, 'get_job_type_display') else job.job_type
 
+            phleb_assigned = None
+            if hasattr(job, 'assignment') and job.assignment:
+                phleb = job.assignment.phlebotomist
+                profile_pic_url = request.build_absolute_uri(phleb.profile_picture.url) if phleb.profile_picture else None
+                phleb_assigned = {
+                    "id": phleb.id,
+                    "name": phleb.full_name,
+                    "profile_picture": profile_pic_url
+                }
+
             data.append({
                 "id": job.id,
                 "title": job.title,
@@ -329,6 +339,7 @@ class JobListForClient(NewAPIView):
                 "pay_rate": pay_rate_formatted,
                 "job_type": job_type_display,
                 "status": job.status,
+                "phlebotomist_assigned": phleb_assigned,
                 "action_status": action_status,
                 "created_at": job.created_at.strftime("%Y-%m-%d %H:%M:%S") if job.created_at else None
             })
