@@ -561,7 +561,7 @@ class InvitePhlebotomistToTheJob(APIView):
     permission_classes = [IsApprovedClient]
 
     @swagger_auto_schema(
-        tags=['App (Client) - Job Details'],
+        tags=['App (Client) - Job Posting'],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=['job_id'],
