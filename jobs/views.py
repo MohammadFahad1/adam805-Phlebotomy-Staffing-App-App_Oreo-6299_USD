@@ -3703,8 +3703,13 @@ class PhlebotomistJobHistoryAPIView(APIView):
         from appointments.models import Payment
         from django.utils import timezone
 
+        from django.db.models import Q
+
         user = request.user
-        assignments = JobAssignment.objects.filter(phlebotomist=user).order_by('-created_at')
+        assignments = JobAssignment.objects.filter(
+            phlebotomist=user,
+            signed_by_phlebotomist=True
+        ).order_by('-created_at')
 
         real_items = []
         real_completed_count = 0
@@ -3717,8 +3722,10 @@ class PhlebotomistJobHistoryAPIView(APIView):
 
         for ja in assignments:
             job = ja.job
-            payment = Payment.objects.filter(job=job).first()
-            payment_status = "Paid" if (payment and payment.payment_status == 'paid') else "Pending"
+            payment = Payment.objects.filter(Q(job=job) | Q(appointment=job.appointment), payment_status='paid').first()
+            if not payment:
+                continue
+            payment_status = "Paid"
             
             subtotal = float(job.pay_rate) * float(job.shift_duration)
             service_fee = subtotal * 0.05
