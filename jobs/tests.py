@@ -770,7 +770,7 @@ class PhlebotomistJobDetailsAPIViewTests(APITestCase):
         self.client_profile = Client.objects.create(
             client=self.client_user,
             business_name="Community Health Center",
-            business_type=Client.HEALTHCARE,
+            business_type="healthcare",
             business_address_street="123 ABC Street Mirpur",
             business_address_city="Dhaka",
             business_address_state="Dhaka Division",
@@ -780,8 +780,8 @@ class PhlebotomistJobDetailsAPIViewTests(APITestCase):
             business_license_number="LIC-11111",
             business_description="Community clinic.",
             hourly_pay_rate=25.00,
-            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
-            work_preference=Client.FULL_TIME
+            preferred_job_type="mobile_blood_draw",
+            work_preference="full_time"
         )
 
         # Create Phlebotomist user
@@ -1155,7 +1155,7 @@ class UserRatingsReviewsAPIViewTests(APITestCase):
         self.client_profile = Client.objects.create(
             client=self.client_user,
             business_name="Community Health Center",
-            business_type=Client.HEALTHCARE,
+            business_type="healthcare",
             business_address_street="123 ABC Street Mirpur",
             business_address_city="Dhaka",
             business_address_state="Dhaka Division",
@@ -1165,8 +1165,8 @@ class UserRatingsReviewsAPIViewTests(APITestCase):
             business_license_number="LIC-11111",
             business_description="Community clinic.",
             hourly_pay_rate=25.00,
-            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
-            work_preference=Client.FULL_TIME,
+            preferred_job_type="mobile_blood_draw",
+            work_preference="full_time",
             is_approved=True
         )
 
@@ -1949,7 +1949,7 @@ class InvitePhlebotomistToTheJobTests(APITestCase):
         Client.objects.create(
             client=self.client_user,
             business_name="Test Business",
-            business_type=Client.HEALTHCARE,
+            business_type="healthcare",
             business_address_street="123 Main St",
             business_address_city="New York",
             business_address_state="NY",
@@ -1959,8 +1959,8 @@ class InvitePhlebotomistToTheJobTests(APITestCase):
             business_license_number="LIC123",
             business_description="Test Business Description",
             hourly_pay_rate=30.00,
-            preferred_job_type=Client.MOBILE_BLOOD_DRAW,
-            work_preference=Client.FULL_TIME,
+            preferred_job_type="mobile_blood_draw",
+            work_preference="full_time",
             is_approved=True
         )
 
