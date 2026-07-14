@@ -121,7 +121,7 @@ class PendingRegistrationsAPIView(NewAPIView):
 class UserDetailForApproval(NewAPIView):
     serializer_class = EmptySerializer
     permission_classes = [IsAdminUser]
-    http_method_names = ['get', 'patch']
+    http_method_names = ['get']
     
     @swagger_auto_schema(tags=['Dashboard - Dashboard Page'])
     def get(self, request, user_id):
