@@ -129,28 +129,28 @@ class Phlebotomist_document(models.Model):
 
 # Client models Start Here
 class Client(models.Model):
-    # HEALTHCARE = 'healthcare'
-    # INDIVIDUAL = 'individual'
-    # BUSINESS_TYPE_CHOICES = [
-    #     (HEALTHCARE, 'Healthcare'),
-    #     (INDIVIDUAL, 'Individual'),
-    # ]
+    HEALTHCARE = 'healthcare'
+    INDIVIDUAL = 'individual'
+    BUSINESS_TYPE_CHOICES = [
+        (HEALTHCARE, 'Healthcare'),
+        (INDIVIDUAL, 'Individual'),
+    ]
     
-    # IN_CLINIC_PHLEBOTOMY = 'in_clinic_phlebotomy'
-    # MOBILE_BLOOD_DRAW = 'mobile_blood_draw'
-    # LABORATORY_TESTING = 'laboratory_testing'
-    # JOB_PREFERENCE_CHOICES = [
-    #     (IN_CLINIC_PHLEBOTOMY, 'In-Clinic Phlebotomy'),
-    #     (MOBILE_BLOOD_DRAW, 'Mobile Blood Draw'),
-    #     (LABORATORY_TESTING, 'Laboratory Testing'),
-    # ]
+    IN_CLINIC_PHLEBOTOMY = 'in_clinic_phlebotomy'
+    MOBILE_BLOOD_DRAW = 'mobile_blood_draw'
+    LABORATORY_TESTING = 'laboratory_testing'
+    JOB_PREFERENCE_CHOICES = [
+        (IN_CLINIC_PHLEBOTOMY, 'In-Clinic Phlebotomy'),
+        (MOBILE_BLOOD_DRAW, 'Mobile Blood Draw'),
+        (LABORATORY_TESTING, 'Laboratory Testing'),
+    ]
     
-    # PART_TIME = 'part_time'
-    # FULL_TIME = 'full_time'
-    # WORK_PREFERENCE_CHOICES = [
-    #     (PART_TIME, 'Part-time'),
-    #     (FULL_TIME, 'Full-time'),
-    # ]
+    PART_TIME = 'part_time'
+    FULL_TIME = 'full_time'
+    WORK_PREFERENCE_CHOICES = [
+        (PART_TIME, 'Part-time'),
+        (FULL_TIME, 'Full-time'),
+    ]
     client = models.OneToOneField(User, on_delete=models.CASCADE, related_name='client_profile')
     business_name = models.CharField(max_length=255)
     business_type = models.CharField(max_length=255)

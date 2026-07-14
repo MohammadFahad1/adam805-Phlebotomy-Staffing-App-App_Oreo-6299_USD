@@ -3747,56 +3747,15 @@ class PhlebotomistJobHistoryAPIView(APIView):
             })
 
         # Base mock counts and values to merge/wow
-        mock_completed_count = 12
-        mock_total_earnings = 1247.50
-        mock_month_earnings = 456.00
+        mock_completed_count = 0
+        mock_total_earnings = 0.0
+        mock_month_earnings = 0.0
 
         total_completed = real_completed_count + mock_completed_count
         total_earnings = real_total_earnings + mock_total_earnings
         month_earnings = real_month_earnings + mock_month_earnings
 
-        mock_items = [
-            {
-                "id": "JB-2025-0315",
-                "title": "Emergency Department",
-                "client_name": "Sunrise Medical Center",
-                "status": "Paid",
-                "date": "Jan 15, 2024",
-                "hours": "8 hours",
-                "amount": "$185.50",
-                "completion_status": "complete"
-            },
-            {
-                "id": "JB-2025-0316",
-                "title": "Blood Draw Station",
-                "client_name": "Community Health Center",
-                "status": "Pending",
-                "date": "Jan 15, 2024",
-                "hours": "8 hours",
-                "amount": "$185.50",
-                "completion_status": "complete"
-            },
-            {
-                "id": "JB-2025-0317",
-                "title": "Emergency Department",
-                "client_name": "Sunrise Medical Center",
-                "status": "Pending",
-                "date": "Jan 15, 2024",
-                "hours": "8 hours",
-                "amount": "$185.50",
-                "completion_status": "incomplete"
-            },
-            {
-                "id": "JB-2025-0318",
-                "title": "Blood Draw Station",
-                "client_name": "Community Health Center",
-                "status": "Paid",
-                "date": "Jan 15, 2024",
-                "hours": "8 hours",
-                "amount": "$185.50",
-                "completion_status": "complete"
-            }
-        ]
+        mock_items = []
 
         all_items = real_items + mock_items
 
