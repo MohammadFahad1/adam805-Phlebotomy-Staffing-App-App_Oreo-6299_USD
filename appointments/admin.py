@@ -173,6 +173,3 @@ class PayoutRequestAdmin(admin.ModelAdmin):
                         description=f"Refund for rejected payout request #{obj.id}"
                     )
         super().save_model(request, obj, form, change)
-
-
-
