@@ -414,3 +414,54 @@ class NotificationSignalTests(APITestCase):
         
         # Verify admin received moderation alert
         self.assertTrue(Notification.objects.filter(user=self.admin, type='moderation_alert', title="Moderation Alert").exists())
+
+
+class AllUserListForReportingAPIViewTests(APITestCase):
+    def setUp(self):
+        # Create users of different roles
+        self.client_user = User.objects.create_user(
+            email='client_test@example.com',
+            full_name='Client User',
+            role='client',
+            password='Password123!',
+            phone_number='1112223333',
+            gender='female',
+            dob=datetime.date(1990, 1, 1)
+        )
+        self.phleb_user = User.objects.create_user(
+            email='phleb_test@example.com',
+            full_name='Phlebotomist User',
+            role='phlebotomist',
+            password='Password123!',
+            phone_number='2223334444',
+            gender='male',
+            dob=datetime.date(1991, 1, 1)
+        )
+        self.admin_user = User.objects.create_user(
+            email='admin_test@example.com',
+            full_name='Admin User',
+            role='admin',
+            password='Password123!',
+            phone_number='3334445555',
+            gender='male',
+            dob=datetime.date(1992, 1, 1)
+        )
+        
+    def test_get_users_list_authenticated_success(self):
+        self.client.force_authenticate(user=self.client_user)
+        url = reverse('all-users-list-reporting')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        
+        # Should include phleb_user but not client_user (requesting user) or admin_user
+        user_ids = [u['id'] for u in response.data['results']]
+        self.assertIn(self.phleb_user.id, user_ids)
+        self.assertNotIn(self.client_user.id, user_ids)
+        self.assertNotIn(self.admin_user.id, user_ids)
+
+    def test_get_users_list_unauthenticated(self):
+        url = reverse('all-users-list-reporting')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+

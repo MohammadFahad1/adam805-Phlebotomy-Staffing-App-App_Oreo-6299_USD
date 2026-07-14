@@ -10,6 +10,7 @@ router.register('devices', FCMDeviceAuthorizedViewSet, basename='devices')
 urlpatterns = [
     path('', include(router.urls)),
     path('chats/', views.ChatListAPIView.as_view(), name='chat-list'),
+    path('chats/users-list-reporting/', views.AllUserListForReportingAPIView.as_view(), name='all-users-list-reporting'),
     path('chats/<int:partner_id>/', views.MessageHistoryAPIView.as_view(), name='message-history'),
     path('chats/<int:partner_id>/seen/', views.MarkAsSeenAPIView.as_view(), name='mark-as-seen'),
     path('notifications/', notification_views.NotificationListAPIView.as_view(), name='notification-list'),

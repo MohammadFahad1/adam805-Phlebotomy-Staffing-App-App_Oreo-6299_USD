@@ -11,6 +11,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from drf_yasg.utils import swagger_auto_schema
 from phlebotomy_staffing.base import NewAPIView
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 User = get_user_model()
 
@@ -241,3 +242,26 @@ class MarkAsSeenAPIView(NewAPIView):
             "success": True,
             "message": "Messages marked as read."
         }, status=200)
+
+
+
+# All user list for reporting
+class AllUserListForReportingAPIView(NewAPIView):
+    serializer_class = UserChatSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(tags=['App (Common) - Reporting'])
+    def get(self, request):
+        """
+        **Get All Users for Reporting**\n
+        Retrieve a list of all active/authenticated users (both clients and phlebotomists) except the requesting user.
+        """
+        users = User.objects.filter(role__in=[User.CLIENT, User.PHLEBOTOMIST]).exclude(id=request.user.id).order_by('full_name')
+        serializer = self.get_serializer(users, many=True)
+        return Response({
+            "success": True,
+            "data": serializer.data,
+            "results": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    
