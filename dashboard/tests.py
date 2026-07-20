@@ -976,6 +976,103 @@ class ServicePackagesAPITests(APITestCase):
         self.assertFalse(ServicePackageFeature.objects.filter(id=self.feature.id).exists())
 
 
+class UserManagementDetailAPITests(APITestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            email="admin_detail@example.com",
+            password="adminpassword",
+            full_name="Admin User",
+            phone_number="1234567890",
+            gender="male",
+            dob="1990-01-01",
+            role=User.ADMIN,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.phleb_user = User.objects.create_user(
+            email="phleb_detail@example.com",
+            password="phlebpassword",
+            full_name="John Phleb",
+            phone_number="1234567892",
+            gender="male",
+            dob="1990-01-01",
+            role=User.PHLEBOTOMIST
+        )
+        self.phleb_profile = Phlebotomist.objects.create(
+            user=self.phleb_user,
+            license_number="PHL-123456",
+            license_expiry_date="2027-12-31",
+            years_of_experience=5,
+            specialty="general_phlebotomy",
+            work_preference="full_time",
+            service_area="Brooklyn",
+            address="123 Street"
+        )
+        self.client_user = User.objects.create_user(
+            email="client_detail@example.com",
+            password="clientpassword",
+            full_name="Client User",
+            phone_number="1234567891",
+            gender="female",
+            dob="1990-01-01",
+            role=User.CLIENT
+        )
+        self.client_profile = Client.objects.create(
+            client=self.client_user,
+            business_name="Original Clinic",
+            business_type="healthcare",
+            business_address_street="456 Avenue",
+            business_address_city="NY",
+            business_address_state="NY",
+            business_address_zip="10001",
+            contact_person_name="Jane Client",
+            business_phone="9876543210",
+            business_license_number="BL-123",
+            business_description="Clinic",
+            hourly_pay_rate=35.00,
+            preferred_job_type="in_clinic_phlebotomy",
+            work_preference="full_time",
+            no_of_employees=10
+        )
+
+    def test_get_user_management_detail_phlebotomist(self):
+        # Create a completed job and assignment
+        job = Job.objects.create(
+            client=self.client_user,
+            title="Blood Draw Job",
+            description="Perform blood draws.",
+            location="123 Main St",
+            shift_date=datetime.date.today(),
+            shift_start=datetime.time(9, 0, 0),
+            shift_end=datetime.time(11, 0, 0),
+            pay_rate=150.00,
+            status=Job.COMPLETED
+        )
+        # Prevent Unique constraint error by creating job first, then assigning it
+        assignment = JobAssignment.objects.create(
+            job=job,
+            phlebotomist=self.phleb_user,
+            client=self.client_user,
+            status='completed'
+        )
+
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('user-management-detail', kwargs={'user_id': self.phleb_user.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['header']['full_name'], "John Phleb")
+        self.assertEqual(response.data['activity_summary']['jobs_completed'], 1)
+        self.assertNotEqual(response.data['activity_summary']['last_active'], "Never")
+
+    def test_get_user_management_detail_client(self):
+        self.client.force_authenticate(user=self.admin_user)
+        url = reverse('user-management-detail', kwargs={'user_id': self.client_user.id})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['header']['full_name'], "Client User")
+
+
 
 
 

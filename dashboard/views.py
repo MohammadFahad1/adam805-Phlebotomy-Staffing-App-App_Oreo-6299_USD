@@ -699,8 +699,20 @@ class UserManagementDetailView(NewAPIView):
             jobs_completed = completed_assignments.count()
             total_applications = user.job_applications.count()
             success_rate = round((jobs_completed / total_applications) * 5, 1) if total_applications > 0 else 0.0
-            last_assignment = completed_assignments.order_by('-end_time').first()
-            last_active = relative_time(last_assignment.end_time if last_assignment else None)
+            last_assignment = completed_assignments.order_by('-job__shift_date', '-job__shift_end').first()
+            if last_assignment and last_assignment.job:
+                from django.utils.timezone import make_aware
+                import datetime
+                try:
+                    dt = datetime.datetime.combine(last_assignment.job.shift_date, last_assignment.job.shift_end)
+                    from django.utils.timezone import is_aware
+                    if not is_aware(dt):
+                        dt = make_aware(dt)
+                except Exception:
+                    dt = last_assignment.created_at
+                last_active = relative_time(dt)
+            else:
+                last_active = relative_time(None)
         else:
             completed_jobs = user.jobs.filter(status='completed').count() if profile else 0
             jobs_completed = completed_jobs
